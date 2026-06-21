@@ -83,6 +83,13 @@ public sealed class WebSocketService : IDisposable
     /// <summary>Fired when a zone change event is received.</summary>
     public Action<int, string>? OnZoneChanged { get; set; }
 
+    /// <summary>
+    /// Fired when an alert is enqueued that could be spoken via TTS.
+    /// Subscribers (e.g. <see cref="TtsService"/>) can inspect the alert
+    /// text and type and decide whether to speak.
+    /// </summary>
+    public Action<string, AlertType>? OnAlertForTts { get; set; }
+
     /// <summary>True when the WebSocket is in the <see cref="WebSocketState.Open"/> state.</summary>
     public bool IsConnected => socket?.State == WebSocketState.Open;
 
@@ -1246,6 +1253,9 @@ public sealed class WebSocketService : IDisposable
 
         if (config.OutputToChatAnnouncement)
             chatQueue.Enqueue(alert.Text);
+
+        // Notify TTS subscribers (fire-and-forget, non-blocking)
+        OnAlertForTts?.Invoke(alert.Text, alert.Type);
 
         log.Debug($"[CactbotPlugin] [{alert.Type}] \"{alert.Text}\" ({alert.Duration:F1}s)");
     }

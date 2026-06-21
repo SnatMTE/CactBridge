@@ -31,11 +31,16 @@ public class ConfigWindow : Window, IDisposable
     private readonly DamageMeterOverlayWindow dpsWindow;
     private readonly RelayHttpService        relayService;
     private readonly BrowserService          browserService;
+    private readonly TtsService              ttsService;
+
+    // Cached TTS status string to avoid allocating a new string every frame
+    private string ttsStatus = "Idle";
 
     // Constant window ID - the title can change without breaking ImGui identity
     public ConfigWindow(Plugin plugin, WebSocketService wsService, OverlayWindow overlayWindow,
                         TimelineOverlayWindow timelineWindow, DamageMeterOverlayWindow dpsWindow,
-                        RelayHttpService relayService, BrowserService browserService)
+                        RelayHttpService relayService, BrowserService browserService,
+                        TtsService ttsService)
         : base("CactBridge Settings###CactBridgeConfig")
     {
         Flags = ImGuiWindowFlags.NoResize    |
@@ -51,6 +56,11 @@ public class ConfigWindow : Window, IDisposable
         this.dpsWindow      = dpsWindow;
         this.relayService   = relayService;
         this.browserService = browserService;
+        this.ttsService     = ttsService;
+
+        // Keep the cached status string in sync
+        ttsStatus = ttsService.Status;
+        ttsService.StatusChanged += s => ttsStatus = s;
     }
 
     public void Dispose() { }
@@ -339,6 +349,66 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip("Prints each alert to your local chat log using the Announcement channel.");
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Text-to-Speech (TTS)
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Text-to-Speech");
+                ImGui.Spacing();
+
+                // TTS engine status
+                if (ttsService.IsReady)
+                    ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"\u25cf {ttsStatus}");
+                else if (ttsStatus.StartsWith("Download") || ttsStatus.StartsWith("Extract"))
+                    ImGui.TextColored(new Vector4(0.80f, 0.80f, 0.20f, 1f), $"\u23f3 {ttsStatus}");
+                else if (ttsStatus.StartsWith("Error") || ttsStatus == "Download failed")
+                    ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), $"\u25cf {ttsStatus}");
+                else
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), $"\u25cf {ttsStatus}");
+
+                ImGui.Spacing();
+
+                var enableTts = configuration.EnableTts;
+                if (ImGui.Checkbox("Enable TTS (spoken alerts)", ref enableTts))
+                {
+                    configuration.EnableTts = enableTts;
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Speaks Cactbot alerts aloud using the bundled eSpeak NG engine.\nAuto-downloaded on first use. Works on both Windows and Steam Deck.");
+
+                if (configuration.EnableTts)
+                {
+                    ImGui.Indent(16f);
+
+                    var ttsAlarm = configuration.TtsPlayAlarm;
+                    if (ImGui.Checkbox("Play for Alarm alerts", ref ttsAlarm))
+                    {
+                        configuration.TtsPlayAlarm = ttsAlarm;
+                        configuration.Save();
+                    }
+
+                    var ttsAlert = configuration.TtsPlayAlert;
+                    if (ImGui.Checkbox("Play for Alert alerts", ref ttsAlert))
+                    {
+                        configuration.TtsPlayAlert = ttsAlert;
+                        configuration.Save();
+                    }
+
+                    var ttsInfo = configuration.TtsPlayInfo;
+                    if (ImGui.Checkbox("Play for Info alerts", ref ttsInfo))
+                    {
+                        configuration.TtsPlayInfo = ttsInfo;
+                        configuration.Save();
+                    }
+
+                    ImGui.Unindent(16f);
+                    ImGui.Spacing();
+                }
 
                 ImGui.Separator();
 

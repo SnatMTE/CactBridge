@@ -53,6 +53,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WebSocketService       wsService;
     private readonly RelayHttpService       relayService;
     private readonly BrowserService        browserService;
+    private readonly TtsService            ttsService;
     private          ConfigWindow              ConfigWindow  { get; init; }
     private          OverlayWindow             OverlayWindow { get; init; }
     private          TimelineOverlayWindow     TimelineOverlayWindow { get; init; }
@@ -79,6 +80,9 @@ public sealed class Plugin : IDalamudPlugin
         var pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
         relayService   = new RelayHttpService(Log, pluginDir);
 
+        // Start the TTS service - speaks alerts aloud via bundled eSpeak NG
+        ttsService = new TtsService(Log, Configuration, pluginDir);
+
         // Launch headless browser with both alerts and timeline pages
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
 
@@ -95,6 +99,9 @@ public sealed class Plugin : IDalamudPlugin
         // PuppeteerSharp bridge (bypasses OverlayPlugin WebSocket entirely).
         browserService.OnPageBroadcast += wsService.HandlePageBroadcast;
 
+        // Forward alerts to the TTS service for spoken output
+        wsService.OnAlertForTts += ttsService.Speak;
+
         // Installation announcements — show progress in the chat announcement channel.
         // 1. Browser download starting
         wsService.EnqueueChatMessage("Installing: Browser...");
@@ -107,7 +114,7 @@ public sealed class Plugin : IDalamudPlugin
         OverlayWindow             = new OverlayWindow(this, wsService);
         TimelineOverlayWindow     = new TimelineOverlayWindow(this, wsService);
         DamageMeterOverlayWindow  = new DamageMeterOverlayWindow(this, wsService);
-        ConfigWindow              = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, DamageMeterOverlayWindow, relayService, browserService);
+        ConfigWindow              = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, DamageMeterOverlayWindow, relayService, browserService, ttsService);
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(OverlayWindow);
@@ -205,6 +212,7 @@ public sealed class Plugin : IDalamudPlugin
         wsService.Dispose();
         relayService.Dispose();
         browserService.Dispose();
+        ttsService.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
 

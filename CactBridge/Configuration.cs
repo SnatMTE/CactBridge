@@ -87,6 +87,22 @@ public class Configuration : IPluginConfiguration
     /// <summary>When true, each alert is also printed to the local chat log as an Announcement.</summary>
     public bool OutputToChatAnnouncement { get; set; } = false;
 
+    // -----------------------------------------------------------------------
+    // Text-to-speech (TTS) settings — uses bundled eSpeak NG
+    // -----------------------------------------------------------------------
+
+    /// <summary>Master toggle for all TTS output.</summary>
+    public bool EnableTts { get; set; } = false;
+
+    /// <summary>When true, Alarm-level alerts are spoken.</summary>
+    public bool TtsPlayAlarm { get; set; } = true;
+
+    /// <summary>When true, Alert-level alerts are spoken.</summary>
+    public bool TtsPlayAlert { get; set; } = true;
+
+    /// <summary>When true, Info-level alerts are spoken.</summary>
+    public bool TtsPlayInfo { get; set; } = false;
+
     /// <summary>
     /// ImGui font scale applied to alert text.
     /// 1.0 = default size, 1.5 = 50 % larger, etc.
