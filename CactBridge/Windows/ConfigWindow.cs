@@ -363,7 +363,7 @@ public class ConfigWindow : Window, IDisposable
                 {
                     ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"\u25cf {ttsStatus}");
                     ImGui.SameLine();
-                    ImGui.TextDisabled($" (Vol: {ttsService.CurrentVolume}% \u2014 follows game Voice)");
+                    ImGui.TextDisabled($" ({ttsService.ActiveEngine} \u2014 Vol: {ttsService.CurrentVolume}%)");
                 }
                 else if (ttsStatus == "Unavailable")
                     ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), $"\u25cf {ttsStatus}");
@@ -381,7 +381,7 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.SameLine();
                 ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Speaks Cactbot alerts aloud using Windows Speech API (System.Speech).\nVolume is synced to the game's Voice sound channel \u2014\nadjust it in System Config \u2192 Sound Settings \u2192 Voice.");
+                    ImGui.SetTooltip("Speaks Cactbot alerts aloud.\n\nOn Windows: uses System.Speech (SAPI).\nVolume follows the game's Voice channel \u2014\nadjust in System Config \u2192 Sound Settings \u2192 Voice.\n\nOn Linux/Steam Deck: uses eSpeak NG (TODO: implement).\nSet the engine in CactBridge.json under TtsEngine.");
 
                 if (configuration.EnableTts)
                 {

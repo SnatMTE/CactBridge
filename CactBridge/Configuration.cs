@@ -4,6 +4,21 @@ using System.Numerics;
 
 namespace CactBridge;
 
+/// <summary>
+/// TTS engine selection.
+/// </summary>
+public enum TtsEngine
+{
+    /// <summary>Auto-detect: SAPI on Windows, eSpeak NG on Linux.</summary>
+    Auto = 0,
+
+    /// <summary>Force Windows SAPI (<c>System.Speech</c>).</summary>
+    SystemSpeech = 1,
+
+    /// <summary>Force eSpeak NG (external process).</summary>
+    EspeakNg = 2,
+}
+
 public enum AlertFontPreset
 {
     FfxivAxis = 0,
@@ -88,7 +103,7 @@ public class Configuration : IPluginConfiguration
     public bool OutputToChatAnnouncement { get; set; } = false;
 
     // -----------------------------------------------------------------------
-    // Text-to-speech (TTS) settings — uses bundled eSpeak NG
+    // Text-to-speech (TTS) settings
     // -----------------------------------------------------------------------
 
     /// <summary>Master toggle for all TTS output.</summary>
@@ -102,6 +117,18 @@ public class Configuration : IPluginConfiguration
 
     /// <summary>When true, Info-level alerts are spoken.</summary>
     public bool TtsPlayInfo { get; set; } = false;
+
+    /// <summary>
+    /// Which TTS engine to use.
+    /// Auto = System.Speech on Windows, eSpeak NG on Linux.
+    /// </summary>
+    public TtsEngine TtsEngine { get; set; } = TtsEngine.Auto;
+
+    /// <summary>
+    /// Path to the eSpeak NG binary (used on Linux / Steam Deck).
+    /// If empty, the service will search common locations.
+    /// </summary>
+    public string? EspeakNgPath { get; set; } = null;
 
     /// <summary>
     /// ImGui font scale applied to alert text.
