@@ -192,6 +192,7 @@ public class Configuration : IPluginConfiguration
     /// <summary>When true, shows the deaths column.</summary>
     public bool DpsShowDeaths { get; set; } = false;
 
+
     /// <summary>Background opacity (0 = transparent, 1 = solid).</summary>
     public float DpsBgAlpha { get; set; } = 0.25f;
 

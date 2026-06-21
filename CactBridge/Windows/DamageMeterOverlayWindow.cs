@@ -149,6 +149,10 @@ public class DamageMeterOverlayWindow : Window, IDisposable
         frameCombatants.Clear();
         frameCombatants.AddRange(wsService.GetPlayerCombatants());
 
+        // Fallback: if player-job filtering produced nothing, try unfiltered list
+        if (frameCombatants.Count == 0)
+            frameCombatants.AddRange(wsService.GetCombatants());
+
         var drawList = ImGui.GetWindowDrawList();
         var boxPos   = ImGui.GetWindowPos();
         var boxSize  = ImGui.GetWindowSize();
@@ -226,9 +230,11 @@ public class DamageMeterOverlayWindow : Window, IDisposable
         // ---------- Combatant rows or empty state ----------
         if (frameCombatants.Count == 0)
         {
-            var emptyText = wsService.IsConnected
-                ? "Waiting for combat data..."
-                : "Not connected to ACT";
+            var emptyText = !wsService.IsConnected
+                ? "Not connected to ACT"
+                : encounter != null
+                    ? $"encounter: {encounter.DPS:F0} — no combatants"
+                : "Waiting for combat data...";
             drawList.AddText(new Vector2(leftX + 24f, cursorY),
                 ImGui.ColorConvertFloat4ToU32(ColorJob), emptyText);
             cursorY += lineHeight;

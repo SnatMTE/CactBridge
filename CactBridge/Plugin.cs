@@ -38,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
     [PluginService] internal static IToastGui               ToastGui         { get; private set; } = null!;
 
+
     // /cactbridge       - open settings
     // /cactbridge move  - toggle move mode
     private const string CommandName = "/cactbridge";
@@ -56,6 +57,7 @@ public sealed class Plugin : IDalamudPlugin
     private          OverlayWindow             OverlayWindow { get; init; }
     private          TimelineOverlayWindow     TimelineOverlayWindow { get; init; }
     private          DamageMeterOverlayWindow  DamageMeterOverlayWindow { get; init; }
+
 
     // DTR (server info bar) entries
     private IDtrBarEntry? partyDpsEntry;
@@ -112,10 +114,12 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.AddWindow(TimelineOverlayWindow);
         WindowSystem.AddWindow(DamageMeterOverlayWindow);
 
+
         // All overlays should always remain visible.
         OverlayWindow.IsOpen = true;
         TimelineOverlayWindow.IsOpen = true;
         DamageMeterOverlayWindow.IsOpen = true;
+
 
         // Cache local player name for personal DPS lookup
         localPlayerName = PlayerState.CharacterName;
@@ -180,6 +184,7 @@ public sealed class Plugin : IDalamudPlugin
         OverlayWindow.Dispose();
         TimelineOverlayWindow.Dispose();
         DamageMeterOverlayWindow.Dispose();
+
 
         // Unsubscribe from events
         ClientState.Login -= OnLogin;
@@ -277,12 +282,11 @@ public sealed class Plugin : IDalamudPlugin
             partyDpsEntry.Shown = false;
         }
 
-        // Personal DPS
+        // Personal DPS — only use the local player's own DPS (no fallback)
         if (cfg.ShowPersonalDpsInBar && personalDpsEntry != null)
         {
             double dpsValue = 0;
 
-            // First try to get the player's own DPS from the combatants list
             if (localPlayerName != null)
             {
                 var player = wsService.GetPlayerCombatant(localPlayerName);
@@ -290,17 +294,15 @@ public sealed class Plugin : IDalamudPlugin
                     dpsValue = player.DPS;
             }
 
-            // If the player isn't in the combatants list (e.g. striking dummy),
-            // fall back to the encounter's overall DPS value
-            if (dpsValue == 0)
+            if (dpsValue > 0)
             {
-                var enc = wsService.GetEncounter();
-                if (enc != null)
-                    dpsValue = enc.DPS;
+                personalDpsEntry.Text = $"DPS: {dpsValue:F0}";
+                personalDpsEntry.Shown = true;
             }
-
-            personalDpsEntry.Text = $"DPS: {dpsValue:F0}";
-            personalDpsEntry.Shown = true;
+            else
+            {
+                personalDpsEntry.Shown = false;
+            }
         }
         else if (personalDpsEntry != null)
         {

@@ -717,7 +717,9 @@ public sealed class WebSocketService : IDisposable
             //   - Or the root element itself is an array of combatant objects.
             var combatantCandidates = new[] {
                 "Combatant", "combatant", "Combatants", "combatants",
-                "Players", "players", "Party", "party"
+                "Players", "players", "Party", "party",
+                "Members", "members", "Member", "member",
+                "Allies", "allies"
             };
 
             foreach (var key in combatantCandidates)
@@ -762,6 +764,35 @@ public sealed class WebSocketService : IDisposable
                 if (parsed != null) combatantsList = parsed;
             }
 
+            // Step 3b: Fallback — if we have an encounter but no combatants were
+            // found at any known key, try scanning every top-level property on the
+            // root object. Some OverlayPlugin builds embed combatant data under
+            // unexpected key names or even directly as sibling properties of Encounter.
+            if (combatantsList.Count == 0 && encounter != null && root.ValueKind == JsonValueKind.Object)
+            {
+                var knownNonCombatant = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "type", "call", "event", "source", "msg", "data",
+                    "Encounter", "encounter", "EncounterData",
+                    "CombatData", "isFighting", "Infight", "incombat",
+                    "zoneID", "zoneName", "duration", "title", "DPS",
+                    "damage", "Damage", "ENCDPS",
+                };
+                foreach (var prop in root.EnumerateObject())
+                {
+                    if (knownNonCombatant.Contains(prop.Name)) continue;
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        // Check if this looks like a single combatant (has Name/Job-like fields)
+                        var ci = DeserializeCombatant(prop.Value.GetRawText());
+                        if (ci != null && !string.IsNullOrEmpty(ci.Name))
+                            combatantsList.Add(ci);
+                    }
+                }
+                if (combatantsList.Count > 0)
+                    log.Information($"[CactBridge] Found {combatantsList.Count} combatant(s) via property-scan fallback.");
+            }
+
             // Step 4: Store results
             lock (combatLock)
             {
@@ -788,7 +819,13 @@ public sealed class WebSocketService : IDisposable
             else if (combatantsList.Count > 0)
                 log.Information($"[CactBridge] [CombatData] {combatantsList.Count} combatants (no encounter info)");
             else
-                log.Verbose("[CactBridge] [CombatData] Received but 0 combatants found.");
+            {
+                // Log available keys to help diagnose the actual message shape
+                var keys = root.ValueKind == JsonValueKind.Object
+                    ? string.Join(", ", root.EnumerateObject().Select(p => p.Name))
+                    : root.ValueKind.ToString();
+                log.Information($"[CactBridge] [CombatData] 0 combatants — keys: [{keys}]");
+            }
         }
         catch (Exception ex)
         {
@@ -923,7 +960,9 @@ public sealed class WebSocketService : IDisposable
         foreach (var key in new[] {
             "Encounter", "encounter",
             "Combatant", "combatant", "Combatants", "combatants",
-            "Players", "players", "Party", "party" })
+            "Players", "players", "Party", "party",
+            "Members", "members", "Member", "member",
+            "Allies", "allies" })
         {
             if (el.TryGetProperty(key, out _))
                 return true;
