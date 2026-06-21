@@ -61,6 +61,7 @@ public sealed class WebSocketService : IDisposable
     private readonly object              combatLock        = new();
     private EncounterInfo?               currentEncounter;
     private List<CombatantInfo>          combatants        = new();
+    private bool                         wasFighting; // Tracks previous IsFighting state to detect combat end
     private readonly CancellationTokenSource cts         = new();
     private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly ConcurrentQueue<string> toastQueue  = new();
@@ -366,7 +367,11 @@ public sealed class WebSocketService : IDisposable
                         zoneName = zoneNameProp.GetString() ?? string.Empty;
                     CurrentZone = !string.IsNullOrEmpty(zoneName) ? zoneName : $"Zone {zoneId}";
                     log.Information($"[CactBridge] Zone changed: {CurrentZone} (ID={zoneId})");
+                    // Clear all state when entering a new zone
+                    ClearAlerts();
                     ClearTimelineEntries();
+                    ResetCombatState();
+                    wasFighting = false;
                     OnZoneChanged?.Invoke(zoneId, zoneName);
                     break;
 
@@ -766,8 +771,20 @@ public sealed class WebSocketService : IDisposable
                     combatants = combatantsList;
             }
 
+            // Step 5: Detect combat end — when IsFighting transitions from true to false,
+            // clear alerts and timeline so stale callouts don't persist after a boss dies.
             if (encounter != null)
+            {
+                if (wasFighting && !encounter.IsFighting)
+                {
+                    log.Information($"[CactBridge] Combat ended for \"{encounter.Title}\" — clearing alerts and timeline.");
+                    ClearAlerts();
+                    ClearTimelineEntries();
+                }
+                wasFighting = encounter.IsFighting;
+
                 log.Information($"[CactBridge] [CombatData] \"{encounter.Title}\" encDPS={encounter.DPS:F0} ({combatantsList.Count} combatants)");
+            }
             else if (combatantsList.Count > 0)
                 log.Information($"[CactBridge] [CombatData] {combatantsList.Count} combatants (no encounter info)");
             else
@@ -1317,6 +1334,23 @@ public sealed class WebSocketService : IDisposable
     {
         lock (timelineLock)
             timelineEntries.Clear();
+    }
+
+    /// <summary>Clears all stored alerts. Thread-safe.</summary>
+    public void ClearAlerts()
+    {
+        lock (alertLock)
+            alerts.Clear();
+    }
+
+    /// <summary>Resets encounter metadata and combatant list. Thread-safe.</summary>
+    public void ResetCombatState()
+    {
+        lock (combatLock)
+        {
+            currentEncounter = null;
+            combatants.Clear();
+        }
     }
 
     private void EnqueueAlert(string text, AlertType alertType, float duration)
