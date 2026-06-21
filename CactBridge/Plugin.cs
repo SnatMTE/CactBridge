@@ -81,7 +81,7 @@ public sealed class Plugin : IDalamudPlugin
         relayService   = new RelayHttpService(Log, pluginDir);
 
         // Start the TTS service - speaks alerts aloud via bundled eSpeak NG
-        ttsService = new TtsService(Log, Configuration, pluginDir);
+        ttsService = new TtsService(Log, Configuration);
 
         // Launch headless browser with both alerts and timeline pages
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);

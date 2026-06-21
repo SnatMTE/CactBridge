@@ -24,6 +24,12 @@
           "WebDriverBiDi": "0.0.45"
         }
       },
+      "System.Speech": {
+        "type": "Direct",
+        "requested": "[9.0.4, )",
+        "resolved": "9.0.4",
+        "contentHash": "XpRYztNXNwH84pwjUNXPTO5TptugoPGJUZNztilpHo4RQ8oBsAqbhy7RhMTEcoJ3tfGLtizezk0r2AiJczpUFA=="
+      },
       "Microsoft.Extensions.DependencyInjection": {
         "type": "Transitive",
         "resolved": "10.0.0",
