@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework              Framework        { get; private set; } = null!;
     [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
     [PluginService] internal static IToastGui               ToastGui         { get; private set; } = null!;
+    [PluginService] internal static IGameConfig             GameConfig       { get; private set; } = null!;
 
 
     // /cactbridge       - open settings
@@ -80,8 +81,9 @@ public sealed class Plugin : IDalamudPlugin
         var pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
         relayService   = new RelayHttpService(Log, pluginDir);
 
-        // Start the TTS service - speaks alerts aloud via bundled eSpeak NG
-        ttsService = new TtsService(Log, Configuration);
+        // Start the TTS service - speaks alerts aloud via Windows SAPI
+        // Volume is automatically synced to the game's Voice sound channel.
+        ttsService = new TtsService(Log, Configuration, GameConfig);
 
         // Launch headless browser with both alerts and timeline pages
         browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);

@@ -360,10 +360,12 @@ public class ConfigWindow : Window, IDisposable
 
                 // TTS engine status
                 if (ttsService.IsReady)
+                {
                     ImGui.TextColored(new Vector4(0.20f, 1.00f, 0.20f, 1f), $"\u25cf {ttsStatus}");
-                else if (ttsStatus.StartsWith("Download") || ttsStatus.StartsWith("Extract"))
-                    ImGui.TextColored(new Vector4(0.80f, 0.80f, 0.20f, 1f), $"\u23f3 {ttsStatus}");
-                else if (ttsStatus.StartsWith("Error") || ttsStatus == "Download failed")
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($" (Vol: {ttsService.CurrentVolume}% \u2014 follows game Voice)");
+                }
+                else if (ttsStatus == "Unavailable")
                     ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), $"\u25cf {ttsStatus}");
                 else
                     ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), $"\u25cf {ttsStatus}");
@@ -379,7 +381,7 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.SameLine();
                 ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Speaks Cactbot alerts aloud using the bundled eSpeak NG engine.\nAuto-downloaded on first use. Works on both Windows and Steam Deck.");
+                    ImGui.SetTooltip("Speaks Cactbot alerts aloud using Windows Speech API (System.Speech).\nVolume is synced to the game's Voice sound channel \u2014\nadjust it in System Config \u2192 Sound Settings \u2192 Voice.");
 
                 if (configuration.EnableTts)
                 {

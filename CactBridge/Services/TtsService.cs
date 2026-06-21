@@ -2,6 +2,7 @@ using System;
 using System.Speech.Synthesis;
 using System.Threading;
 using System.Threading.Tasks;
+using Dalamud.Game.Config;
 using Dalamud.Plugin.Services;
 
 namespace CactBridge.Services;
@@ -19,11 +20,16 @@ namespace CactBridge.Services;
 ///
 /// Speech requests are fire-and-forget via <see cref="SpeechSynthesizer.SpeakAsync"/>
 /// so they never block the game thread.
+///
+/// Volume is automatically synced to the game's **Voice** sound channel
+/// (<c>SystemConfigOption.SoundVoice</c>). If the game's Voice volume
+/// is 0 the TTS will be silent; set it in-game under System Config → Sound.
 /// </summary>
 public sealed class TtsService : IDisposable
 {
     private readonly IPluginLog log;
     private readonly Configuration config;
+    private readonly IGameConfig gameConfig;
     private SpeechSynthesizer? synth;
     private bool disposed;
 
@@ -40,10 +46,17 @@ public sealed class TtsService : IDisposable
     /// <summary>True once the synthesizer is ready to use.</summary>
     public bool IsReady { get; private set; }
 
-    public TtsService(IPluginLog log, Configuration config)
+    /// <summary>
+    /// The TTS volume (0–100) currently being used.
+    /// Mirrors the game's Voice sound channel volume.
+    /// </summary>
+    public int CurrentVolume { get; private set; } = 100;
+
+    public TtsService(IPluginLog log, Configuration config, IGameConfig gameConfig)
     {
         this.log = log;
         this.config = config;
+        this.gameConfig = gameConfig;
 
         try
         {
@@ -88,8 +101,41 @@ public sealed class TtsService : IDisposable
     // Public API
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // Volume sync
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the game's Voice channel volume (<c>SystemConfigOption.SoundVoice</c>)
+    /// and applies it to the speech synthesizer.
+    ///
+    /// Returns the volume level (0–100), or 100 if the config value can't be read.
+    /// </summary>
+    private int SyncVolumeFromGame()
+    {
+        if (synth == null) return 0;
+
+        if (gameConfig.TryGet(SystemConfigOption.SoundVoice, out uint voiceVol))
+        {
+            var clamped = (int)Math.Clamp(voiceVol, 0u, 100u);
+            synth.Volume = clamped;
+            CurrentVolume = clamped;
+            return clamped;
+        }
+
+        // Fall back to 100 if we can't read the game config
+        synth.Volume = 100;
+        CurrentVolume = 100;
+        return 100;
+    }
+
+    // -----------------------------------------------------------------------
+    // Public API
+    // -----------------------------------------------------------------------
+
     /// <summary>
     /// Speaks the given text asynchronously (fire-and-forget).
+    /// Volume is synced from the game's Voice channel before speaking.
     /// Respects the per-type enable toggles in <see cref="Configuration"/>.
     /// Silently skips if the synthesizer failed to initialise.
     /// </summary>
@@ -110,6 +156,7 @@ public sealed class TtsService : IDisposable
 
         try
         {
+            SyncVolumeFromGame();
             synth.SpeakAsync(text);
         }
         catch (Exception ex)
@@ -121,6 +168,7 @@ public sealed class TtsService : IDisposable
     /// <summary>
     /// Speaks text synchronously (for testing / immediate use).
     /// Blocks the calling thread until speech completes.
+    /// Volume is synced from the game's Voice channel before speaking.
     /// </summary>
     public void SpeakSync(string text)
     {
@@ -130,6 +178,7 @@ public sealed class TtsService : IDisposable
 
         try
         {
+            SyncVolumeFromGame();
             synth.Speak(text);
         }
         catch (Exception ex)
