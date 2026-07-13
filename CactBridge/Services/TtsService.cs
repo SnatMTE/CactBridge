@@ -158,12 +158,21 @@ public sealed class TtsService : IDisposable
     {
         if (synth == null) return 0;
 
-        if (gameConfig.TryGet(SystemConfigOption.SoundVoice, out uint voiceVol))
+        try
         {
-            var clamped = (int)Math.Clamp(voiceVol, 0u, 100u);
-            synth.Volume = clamped;
-            CurrentVolume = clamped;
-            return clamped;
+            if (gameConfig.TryGet(SystemConfigOption.SoundVoice, out uint voiceVol))
+            {
+                var clamped = (int)Math.Clamp(voiceVol, 0u, 100u);
+                synth.Volume = clamped;
+                CurrentVolume = clamped;
+                return clamped;
+            }
+        }
+        catch (Exception ex)
+        {
+            // IGameConfig.TryGet can throw exceptions when logged out or during zone changes.
+            // Fall through to default volume rather than disrupting TTS.
+            log.Verbose($"[CactBridge] TTS: Failed to read game volume: {ex.Message}");
         }
 
         synth.Volume = 100;

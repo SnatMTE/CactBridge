@@ -251,6 +251,11 @@ public sealed class Plugin : IDalamudPlugin
     private void OnLogin()
     {
         localPlayerName = PlayerState.CharacterName;
+        
+        // Re-subscribe to OverlayPlugin events after login.
+        // When you log out, ACT/OverlayPlugin may stop sending BroadcastMessage
+        // events. This ensures they resume when you log back in.
+        wsService.RefreshSubscription();
     }
 
     // -----------------------------------------------------------------------

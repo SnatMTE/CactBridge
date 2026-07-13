@@ -72,6 +72,7 @@ public sealed class WebSocketService : IDisposable
 
     private ClientWebSocket? socket;
     private bool             disposed;
+    private readonly SemaphoreSlim subscribeLock = new(1, 1);
 
     // -----------------------------------------------------------------------
     // Public events / properties (safe to read from any thread)
@@ -117,6 +118,39 @@ public sealed class WebSocketService : IDisposable
     // -----------------------------------------------------------------------
     // Public API (UI thread)
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Re-sends subscription and start commands to ACT/OverlayPlugin.
+    /// Call this after login or when events stop flowing (e.g. after logout/login cycle).
+    /// Thread-safe and non-blocking.
+    /// </summary>
+    public void RefreshSubscription()
+    {
+        _ = Task.Run(async () =>
+        {
+            if (disposed || socket == null || socket.State != WebSocketState.Open)
+                return;
+
+            // Prevent concurrent subscription attempts
+            if (!await subscribeLock.WaitAsync(0))
+                return;
+
+            try
+            {
+                log.Information("[CactBridge] Refreshing subscription to OverlayPlugin events...");
+                await SendSubscriptionAsync(socket, cts.Token);
+                log.Information("[CactBridge] Subscription refreshed.");
+            }
+            catch (Exception ex)
+            {
+                log.Warning($"[CactBridge] Failed to refresh subscription: {ex.Message}");
+            }
+            finally
+            {
+                subscribeLock.Release();
+            }
+        });
+    }
 
     /// <summary>
     /// Returns a point-in-time snapshot of active (non-expired) alerts trimmed
@@ -190,6 +224,47 @@ public sealed class WebSocketService : IDisposable
     }
 
     // -----------------------------------------------------------------------
+    // Subscription helper
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Sends subscribe and start commands to ACT/OverlayPlugin.
+    /// Some OverlayPlugin / ACT WS servers require an explicit "start"
+    /// after subscribing to begin forwarding CombatData events.
+    /// </summary>
+    private async Task SendSubscriptionAsync(ClientWebSocket ws, CancellationToken token)
+    {
+        const int maxAttempts = 3;
+        
+        for (int attempt = 1; attempt <= maxAttempts && !token.IsCancellationRequested; attempt++)
+        {
+            if (attempt > 1)
+            {
+                // Small delay before retry
+                try { await Task.Delay(300, token); } catch (OperationCanceledException) { break; }
+            }
+
+            var subJson  = JsonSerializer.Serialize(new SubscribeRequest { Events = SubscribedEvents });
+            var subBytes = Encoding.UTF8.GetBytes(subJson);
+            await ws.SendAsync(
+                new ArraySegment<byte>(subBytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: token);
+
+            var startMsg = """{"call":"start"}""";
+            var startBytes = Encoding.UTF8.GetBytes(startMsg);
+            await ws.SendAsync(
+                new ArraySegment<byte>(startBytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: token);
+        }
+        
+        log.Information("[CactBridge] Subscribed and sent start.");
+    }
+
+    // -----------------------------------------------------------------------
     // Connect → subscribe → receive loop
     // -----------------------------------------------------------------------
 
@@ -207,42 +282,8 @@ public sealed class WebSocketService : IDisposable
         await socket.ConnectAsync(new Uri(WsUrl), token);
         log.Information("[CactBridge] Connected to OverlayPlugin WebSocket.");
 
-        // ------------------------------------------------------------------
-        // Subscribe to desired events (with retries, matching overlay.js pattern)
-        // ------------------------------------------------------------------
-        // Some OverlayPlugin / ACT WS servers require an explicit "start"
-        // after subscribing to begin forwarding CombatData events.
-        // Match the proven working overlay.js behaviour: send just { call:"start" }.
-        // Also retry subscribe+start a few times (overlay.js retries every 1s
-        // up to 10×; we do 3 quick attempts to keep startup snappy).
-        var subscribeAttempts = 0;
-        var maxSubscribeAttempts = 3;
-        while (subscribeAttempts < maxSubscribeAttempts && !token.IsCancellationRequested)
-        {
-            if (subscribeAttempts > 0)
-            {
-                // Small delay before retry
-                try { await Task.Delay(300, token); } catch (OperationCanceledException) { break; }
-            }
-            subscribeAttempts++;
-
-            var subJson  = JsonSerializer.Serialize(new SubscribeRequest { Events = SubscribedEvents });
-            var subBytes = Encoding.UTF8.GetBytes(subJson);
-            await socket.SendAsync(
-                new ArraySegment<byte>(subBytes),
-                WebSocketMessageType.Text,
-                endOfMessage: true,
-                cancellationToken: token);
-
-            var startMsg = """{"call":"start"}""";
-            var startBytes = Encoding.UTF8.GetBytes(startMsg);
-            await socket.SendAsync(
-                new ArraySegment<byte>(startBytes),
-                WebSocketMessageType.Text,
-                endOfMessage: true,
-                cancellationToken: token);
-        }
-        log.Information($"[CactBridge] Subscribed and sent start (attempts={subscribeAttempts}).");
+        // Send subscription and start commands
+        await SendSubscriptionAsync(socket, token);
 
         // ------------------------------------------------------------------
         // Receive loop - reassemble fragmented frames before processing
@@ -380,6 +421,14 @@ public sealed class WebSocketService : IDisposable
                     ResetCombatState();
                     wasFighting = false;
                     OnZoneChanged?.Invoke(zoneId, zoneName);
+                    
+                    // Refresh subscription after a brief delay to ensure ACT/OverlayPlugin
+                    // resumes sending events after the zone transition.
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1000); // Wait 1 second for zone transition to complete
+                        RefreshSubscription();
+                    });
                     break;
 
                 case "LogLine":
