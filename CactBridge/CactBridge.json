@@ -2,7 +2,7 @@
   "Author": "Snat",
   "Name": "CactBridge",
   "InternalName": "CactBridge",
-  "AssemblyVersion": "0.0.5.0",
+  "AssemblyVersion": "0.0.5.1",
   "Punchline": "Cactbot overlay integration for FFXIV",
   "Description": "A Cactbot UI plugin that displays triggers, timelines, and raid buffs overlay in FFXIV. Use /cactbridge to open settings.",
   "ApplicableVersion": "any",
