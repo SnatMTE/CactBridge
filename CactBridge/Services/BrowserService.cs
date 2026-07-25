@@ -342,6 +342,25 @@ public sealed class BrowserService : IDisposable
                     "--disable-gpu",
                     "--disable-dev-shm-usage",
                     "--log-level=3",
+
+                    // Memory reduction 
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--metrics-recording-only",
+                    "--no-first-run",
+                    "--mute-audio",
+                    "--disable-audio-output",
+                    "--disable-breakpad",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding",
+                    "--js-flags=--max-old-space-size=64 --optimize-for-size --gc-interval=100",
+                    "--single-process",
+                    "--disable-features=TranslateUI,Translate,BlinkGenPropertyTrees,"
+                    + "IsolateOrigins,site-per-process,AudioServiceSandbox",
+                    "--default-background-timer-throttling=false",
                 },
             });
 
