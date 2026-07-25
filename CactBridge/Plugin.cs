@@ -320,7 +320,8 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     private void OnFrameworkUpdate(IFramework framework)
     {
-        // --- Deferred initialisation: wait until IINACT is loaded ----------
+        // --- Deferred initialisation: wait until IINACT is loaded and -------
+        // --- the player has logged in with a character. --------------------
         if (!_initialized)
         {
             var iinactLoaded = PluginInterface.InstalledPlugins
@@ -328,6 +329,9 @@ public sealed class Plugin : IDalamudPlugin
 
             if (!iinactLoaded)
                 return; // keep waiting
+
+            if (!ClientState.IsLoggedIn || ClientState.LocalPlayer == null)
+                return; // wait for character login
 
             InitializeServices();
         }
