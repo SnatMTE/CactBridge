@@ -1,11 +1,12 @@
-﻿using Dalamud.Game.Command;
+﻿using System.Diagnostics;
+using System.Linq;
+using Dalamud.Game.Command;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.Gui.Dtr;
 using CactBridge.Services;
-using System.Diagnostics;
 using CactBridge.Windows;
 
 namespace CactBridge;
@@ -49,16 +50,16 @@ public sealed class Plugin : IDalamudPlugin
     public readonly WindowSystem WindowSystem = new("CactBridge");
 
     // -----------------------------------------------------------------------
-    // Plugin-owned objects
+    // Plugin-owned objects (initialised lazily after IINACT is detected)
     // -----------------------------------------------------------------------
-    private readonly WebSocketService       wsService;
-    private readonly RelayHttpService       relayService;
-    private readonly BrowserService        browserService;
-    private readonly TtsService            ttsService;
-    private          ConfigWindow              ConfigWindow  { get; init; }
-    private          OverlayWindow             OverlayWindow { get; init; }
-    private          TimelineOverlayWindow     TimelineOverlayWindow { get; init; }
-    private          DamageMeterOverlayWindow  DamageMeterOverlayWindow { get; init; }
+    private WebSocketService?       wsService;
+    private RelayHttpService?       relayService;
+    private BrowserService?         browserService;
+    private TtsService?             ttsService;
+    private ConfigWindow?           ConfigWindow  { get; set; }
+    private OverlayWindow?          OverlayWindow { get; set; }
+    private TimelineOverlayWindow?  TimelineOverlayWindow { get; set; }
+    private DamageMeterOverlayWindow? DamageMeterOverlayWindow { get; set; }
 
 
     // DTR (server info bar) entries
@@ -66,27 +67,60 @@ public sealed class Plugin : IDalamudPlugin
     private IDtrBarEntry? personalDpsEntry;
     private string?      localPlayerName;
 
+    // Deferred-initialisation state
+    private bool   _initialized;
+    private string _pluginDir = string.Empty;
+
     // -----------------------------------------------------------------------
-    // Constructor
+    // Constructor — minimal setup only; heavy init waits for IINACT
     // -----------------------------------------------------------------------
     public Plugin()
     {
         // Load or create configuration from Dalamud's config storage
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
+        // Cache the plugin directory for later use during deferred init
+        _pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
+
+        // Register slash command immediately so it's always available
+        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
+        {
+            HelpMessage = "Open CactBridge settings. '/cactbridge move' toggles move mode for the overlay."
+        });
+
+        // Hook into Dalamud's UI draw pipeline (WindowSystem.Draw is a no-op
+        // until windows are created, so it's safe to attach early)
+        PluginInterface.UiBuilder.Draw        += WindowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
+        PluginInterface.UiBuilder.OpenMainUi   += ToggleMainUi;
+        Framework.Update                       += OnFrameworkUpdate;
+
+        // Attempt to load IINACT now — if it's installed, this loads it
+        // immediately so our next Framework tick will see it.
+        PluginInterface.LoadRequiredPlugin("IINACT");
+
+        Log.Information("[CactBridge] Plugin loaded. Waiting for IINACT...");
+    }
+
+    // -----------------------------------------------------------------------
+    // Full initialisation — called once IINACT is detected
+    // -----------------------------------------------------------------------
+    private void InitializeServices()
+    {
+        Log.Information("[CactBridge] IINACT detected — initialising services...");
+
         // Start the WebSocket service - connects and listens on a background Task
         wsService = new WebSocketService(Log, Configuration);
 
         // Start the relay HTTP server - serves raidboss-user.js to Cactbot
-        var pluginDir = PluginInterface.AssemblyLocation.DirectoryName ?? string.Empty;
-        relayService   = new RelayHttpService(Log, pluginDir);
+        relayService   = new RelayHttpService(Log, _pluginDir);
 
         // Start the TTS service - speaks alerts aloud via Windows SAPI
         // Volume is automatically synced to the game's Voice sound channel.
         ttsService = new TtsService(Log, Configuration, GameConfig);
 
         // Launch headless browser with both alerts and timeline pages
-        browserService = new BrowserService(Log, pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
+        browserService = new BrowserService(Log, _pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
 
         // Forward ACT log lines from the plugin's WebSocket into the headless
         // browser page, so the Cactbot timeline controller receives data even
@@ -143,19 +177,8 @@ public sealed class Plugin : IDalamudPlugin
         personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS", "0");
         personalDpsEntry.Shown = false;
 
-        // Register slash command
-        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "Open CactBridge settings. '/cactbridge move' toggles move mode for the overlay."
-        });
-
-        // Hook into Dalamud's UI draw pipeline
-        PluginInterface.UiBuilder.Draw        += WindowSystem.Draw;
-        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
-        PluginInterface.UiBuilder.OpenMainUi   += ToggleMainUi;
-        Framework.Update                       += OnFrameworkUpdate;
-
-        Log.Information("[CactBridge] Plugin loaded.");
+        _initialized = true;
+        Log.Information("[CactBridge] Services initialised.");
     }
 
     // -----------------------------------------------------------------------
@@ -185,36 +208,40 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi   -= ToggleMainUi;
         Framework.Update                       -= OnFrameworkUpdate;
 
-        // Unsubscribe from browser state changes
-        browserService.StateChanged -= OnBrowserStateChanged;
-
-        WindowSystem.RemoveAllWindows();
-        ConfigWindow.Dispose();
-        OverlayWindow.Dispose();
-        TimelineOverlayWindow.Dispose();
-        DamageMeterOverlayWindow.Dispose();
-
-
-        // Unsubscribe from events
-        ClientState.Login -= OnLogin;
-
-        // Remove DTR entries from the server info bar
-        if (partyDpsEntry != null)
+        if (_initialized)
         {
-            DtrBar.Remove("CactBridge-PartyDPS");
-            partyDpsEntry = null;
-        }
-        if (personalDpsEntry != null)
-        {
-            DtrBar.Remove("CactBridge-PersonalDPS");
-            personalDpsEntry = null;
-        }
+            // Unsubscribe from browser state changes
+            if (browserService != null)
+                browserService.StateChanged -= OnBrowserStateChanged;
 
-        // Cancels the background task and closes the WebSocket gracefully
-        wsService.Dispose();
-        relayService.Dispose();
-        browserService.Dispose();
-        ttsService.Dispose();
+            WindowSystem.RemoveAllWindows();
+            ConfigWindow?.Dispose();
+            OverlayWindow?.Dispose();
+            TimelineOverlayWindow?.Dispose();
+            DamageMeterOverlayWindow?.Dispose();
+
+
+            // Unsubscribe from events
+            ClientState.Login -= OnLogin;
+
+            // Remove DTR entries from the server info bar
+            if (partyDpsEntry != null)
+            {
+                DtrBar.Remove("CactBridge-PartyDPS");
+                partyDpsEntry = null;
+            }
+            if (personalDpsEntry != null)
+            {
+                DtrBar.Remove("CactBridge-PersonalDPS");
+                personalDpsEntry = null;
+            }
+
+            // Dispose services gracefully
+            wsService?.Dispose();
+            relayService?.Dispose();
+            browserService?.Dispose();
+            ttsService?.Dispose();
+        }
 
         CommandManager.RemoveHandler(CommandName);
 
@@ -235,14 +262,15 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     // UI toggle helpers (also wired to plugin-installer buttons)
     // -----------------------------------------------------------------------
-    public void ToggleConfigUi() => ConfigWindow.Toggle();
+    public void ToggleConfigUi() => ConfigWindow?.Toggle();
 
-    public bool IsConfigUiOpen => ConfigWindow.IsOpen;
+    public bool IsConfigUiOpen => ConfigWindow?.IsOpen ?? false;
 
     public void ToggleMainUi()
     {
-        OverlayWindow.ToggleMoveMode();
-        OverlayWindow.IsOpen = true;
+        OverlayWindow?.ToggleMoveMode();
+        if (OverlayWindow != null)
+            OverlayWindow.IsOpen = true;
     }
 
     // -----------------------------------------------------------------------
@@ -255,16 +283,32 @@ public sealed class Plugin : IDalamudPlugin
         // Re-subscribe to OverlayPlugin events after login.
         // When you log out, ACT/OverlayPlugin may stop sending BroadcastMessage
         // events. This ensures they resume when you log back in.
-        wsService.RefreshSubscription();
+        wsService?.RefreshSubscription();
     }
 
     // -----------------------------------------------------------------------
-    // Framework update - drain chat queue + update DTR entries
+    // Framework update - wait for IINACT, then drain queues + update DTR
     // -----------------------------------------------------------------------
     private void OnFrameworkUpdate(IFramework framework)
     {
+        // --- Deferred initialisation: wait until IINACT is loaded ----------
+        if (!_initialized)
+        {
+            var iinactLoaded = PluginInterface.InstalledPlugins
+                .Any(p => p.InternalName == "IINACT" && p.IsLoaded);
+
+            if (!iinactLoaded)
+                return; // keep waiting
+
+            InitializeServices();
+        }
+
+        // --- Regular per-frame work (only when initialised) ----------------
+        var ws = wsService;
+        if (ws == null) return;
+
         // Drain chat announcement queue
-        while (wsService.TryDequeueChat(out var msg))
+        while (ws.TryDequeueChat(out var msg))
             ChatGui.Print(new Dalamud.Game.Text.XivChatEntry
             {
                 Type    = Dalamud.Game.Text.XivChatType.Notice,
@@ -272,7 +316,7 @@ public sealed class Plugin : IDalamudPlugin
             });
 
         // Drain toast queue — fires real FFXIV toasts when in Toast style
-        while (wsService.TryDequeueToast(out var toastMsg))
+        while (ws.TryDequeueToast(out var toastMsg))
             ToastGui.ShowQuest(toastMsg);
 
         // Update server info bar entries
@@ -281,7 +325,7 @@ public sealed class Plugin : IDalamudPlugin
         // Party DPS
         if (cfg.ShowPartyDpsInBar && partyDpsEntry != null)
         {
-            var enc = wsService.GetEncounter();
+            var enc = ws.GetEncounter();
             if (enc != null)
             {
                 partyDpsEntry.Text = $"encDPS: {enc.DPS:F0}";
@@ -304,7 +348,7 @@ public sealed class Plugin : IDalamudPlugin
 
             if (localPlayerName != null)
             {
-                var player = wsService.GetPlayerCombatant(localPlayerName);
+                var player = ws.GetPlayerCombatant(localPlayerName);
                 if (player != null)
                     dpsValue = player.DPS;
             }
