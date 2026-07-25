@@ -58,6 +58,27 @@ public sealed class BrowserService : IDisposable
     public string TimelineStatus { get; private set; } = "Idle";
 
     /// <summary>
+    /// Returns <c>true</c> if the Chromium browser engine has already been
+    /// downloaded to the persistent cache directory.  Used to avoid showing
+    /// a misleading "Installing: Browser…" notification on subsequent runs.
+    /// </summary>
+    public bool IsChromiumDownloaded
+    {
+        get
+        {
+            try
+            {
+                var dir = new DirectoryInfo(chromiumPath);
+                return dir.Exists && dir.EnumerateFileSystemEntries().Any();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
     /// Fired when a page (alerts or timeline) broadcasts data via the native
     /// bridge (bypasses OverlayPlugin WebSocket).  The argument is a JSON
     /// string with shape <c>{ type, text, time?, ... }</c>.

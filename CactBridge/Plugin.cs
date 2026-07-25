@@ -6,6 +6,7 @@ using Dalamud.Plugin;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Interface.ImGuiNotification;
 using CactBridge.Services;
 using CactBridge.Windows;
 
@@ -39,6 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDtrBar                 DtrBar           { get; private set; } = null!;
     [PluginService] internal static IToastGui               ToastGui         { get; private set; } = null!;
     [PluginService] internal static IGameConfig             GameConfig       { get; private set; } = null!;
+    [PluginService] internal static INotificationManager    NotificationManager { get; private set; } = null!;
 
 
     // /cactbridge       - open settings
@@ -138,11 +140,18 @@ public sealed class Plugin : IDalamudPlugin
         // Forward alerts to the TTS service for spoken output
         wsService.OnAlertForTts += ttsService.Speak;
 
-        // Installation announcements — show progress in the chat announcement channel.
-        // 1. Browser download starting
-        wsService.EnqueueChatMessage("Installing: Browser...");
+        // Installation announcements — show progress via Dalamud notifications
+        if (!browserService.IsChromiumDownloaded)
+        {
+            NotificationManager.AddNotification(new Notification
+            {
+                Content = "Installing: Browser...",
+                Title   = "CactBridge",
+                Type    = NotificationType.Info
+            });
+        }
 
-        // 2. Subscribe to browser state changes for subsequent steps
+        // Subscribe to browser state changes for subsequent steps
         browserService.StateChanged += OnBrowserStateChanged;
 
         // Create windows - OverlayWindow must exist before ConfigWindow
@@ -190,10 +199,20 @@ public sealed class Plugin : IDalamudPlugin
         switch (state)
         {
             case BrowserService.BrowserState.Launching:
-                wsService.EnqueueChatMessage("Installing: Puppet...");
+                NotificationManager.AddNotification(new Notification
+                {
+                    Content = "Installing: Puppet...",
+                    Title   = "CactBridge",
+                    Type    = NotificationType.Info
+                });
                 break;
             case BrowserService.BrowserState.Running:
-                wsService.EnqueueChatMessage("Plugin Loaded!");
+                NotificationManager.AddNotification(new Notification
+                {
+                    Content = "CactBridge is ready!",
+                    Title   = "CactBridge",
+                    Type    = NotificationType.Success
+                });
                 break;
         }
     }
