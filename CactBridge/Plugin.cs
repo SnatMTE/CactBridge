@@ -140,17 +140,6 @@ public sealed class Plugin : IDalamudPlugin
         // Forward alerts to the TTS service for spoken output
         wsService.OnAlertForTts += ttsService.Speak;
 
-        // Installation announcements — show progress via Dalamud notifications
-        if (!browserService.IsChromiumDownloaded)
-        {
-            NotificationManager.AddNotification(new Notification
-            {
-                Content = "Installing: Browser...",
-                Title   = "CactBridge",
-                Type    = NotificationType.Info
-            });
-        }
-
         // Subscribe to browser state changes for subsequent steps
         browserService.StateChanged += OnBrowserStateChanged;
 
@@ -196,25 +185,46 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnBrowserStateChanged(BrowserService.BrowserState state)
     {
-        switch (state)
+        // StateChanged fires from the browser service's background thread,
+        // but Dalamud notifications must be posted on the framework thread.
+        Framework.RunOnFrameworkThread(() =>
         {
-            case BrowserService.BrowserState.Launching:
-                NotificationManager.AddNotification(new Notification
-                {
-                    Content = "Installing: Puppet...",
-                    Title   = "CactBridge",
-                    Type    = NotificationType.Info
-                });
-                break;
-            case BrowserService.BrowserState.Running:
-                NotificationManager.AddNotification(new Notification
-                {
-                    Content = "CactBridge is ready!",
-                    Title   = "CactBridge",
-                    Type    = NotificationType.Success
-                });
-                break;
-        }
+            switch (state)
+            {
+                case BrowserService.BrowserState.Downloading:
+                    NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Installing: Browser...",
+                        Title   = "CactBridge",
+                        Type    = NotificationType.Info
+                    });
+                    break;
+                case BrowserService.BrowserState.Launching:
+                    NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Loading Browser...",
+                        Title   = "CactBridge",
+                        Type    = NotificationType.Info
+                    });
+                    break;
+                case BrowserService.BrowserState.Running:
+                    NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "CactBridge is ready!",
+                        Title   = "CactBridge",
+                        Type    = NotificationType.Success
+                    });
+                    break;
+                case BrowserService.BrowserState.Error:
+                    NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Browser failed to start — check /xllog for details.",
+                        Title   = "CactBridge",
+                        Type    = NotificationType.Error
+                    });
+                    break;
+            }
+        });
     }
 
     // -----------------------------------------------------------------------
