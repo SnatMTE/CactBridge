@@ -69,7 +69,7 @@ public sealed class BrowserService : IDisposable
             try
             {
                 var dir = new DirectoryInfo(chromiumPath);
-                return dir.Exists && dir.EnumerateFileSystemEntries().Any();
+                return dir.Exists && dir.EnumerateFileSystemInfos().Any();
             }
             catch
             {

@@ -41,6 +41,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IToastGui               ToastGui         { get; private set; } = null!;
     [PluginService] internal static IGameConfig             GameConfig       { get; private set; } = null!;
     [PluginService] internal static INotificationManager    NotificationManager { get; private set; } = null!;
+    [PluginService] internal static IObjectTable            ObjectTable      { get; private set; } = null!;
 
 
     // /cactbridge       - open settings
@@ -96,10 +97,6 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi   += ToggleMainUi;
         Framework.Update                       += OnFrameworkUpdate;
-
-        // Attempt to load IINACT now — if it's installed, this loads it
-        // immediately so our next Framework tick will see it.
-        PluginInterface.LoadRequiredPlugin("IINACT");
 
         Log.Information("[CactBridge] Plugin loaded. Waiting for IINACT...");
     }
@@ -330,7 +327,7 @@ public sealed class Plugin : IDalamudPlugin
             if (!iinactLoaded)
                 return; // keep waiting
 
-            if (!ClientState.IsLoggedIn || ClientState.LocalPlayer == null)
+            if (!ClientState.IsLoggedIn || ObjectTable.LocalPlayer == null)
                 return; // wait for character login
 
             InitializeServices();
