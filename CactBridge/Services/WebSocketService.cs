@@ -111,8 +111,14 @@ public sealed class WebSocketService : IDisposable
     {
         this.log    = log;
         this.config = config;
-        // Fire-and-forget; the loop manages its own lifetime via cts
-        _ = Task.Run(() => RunLoopAsync(cts.Token));
+        // Fire-and-forget; run at BelowNormal priority so the game always
+        // gets CPU time first when the CPU is saturated.
+        _ = Task.Run(() =>
+        {
+            Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+            Thread.CurrentThread.IsBackground = true;
+            RunLoopAsync(cts.Token);
+        });
     }
 
     // -----------------------------------------------------------------------
