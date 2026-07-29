@@ -377,11 +377,31 @@ public sealed class BrowserService : IDisposable
 
             // Expose a native bridge so the relay JS can send data back to us
             // without needing the OverlayPlugin WebSocket.
-            await alertsPage.ExposeFunctionAsync("__cactbridgeBroadcast", (string jsonData) =>
+            // Gracefully handle the case where the page is already being closed
+            // (e.g. Restart() or Dispose() races with initialisation).
+            if (!alertsPage.IsClosed)
             {
-                OnPageBroadcast?.Invoke(jsonData);
-                return Task.CompletedTask;
-            });
+                try
+                {
+                    await alertsPage.ExposeFunctionAsync("__cactbridgeBroadcast", (string jsonData) =>
+                    {
+                        OnPageBroadcast?.Invoke(jsonData);
+                        return Task.CompletedTask;
+                    });
+                }
+                catch (TargetClosedException ex)
+                {
+                    log.Warning($"[CactBridge] Alerts page closed during function binding: {ex.Message}");
+                    await StopBrowserAsync();
+                    return;
+                }
+            }
+            else
+            {
+                log.Warning("[CactBridge] Alerts page was already closed before function binding");
+                await StopBrowserAsync();
+                return;
+            }
 
             if (ct.IsCancellationRequested) { await StopBrowserAsync(); return; }
 
@@ -398,11 +418,31 @@ public sealed class BrowserService : IDisposable
                 TimelineStatus = "Running";
                 log.Information($"[CactBridge] Timeline page → {timelineUrl}");
 
-                await timelinePage.ExposeFunctionAsync("__cactbridgeBroadcast", (string jsonData) =>
+                // Gracefully handle the case where the page is already being closed
+                // (e.g. Restart() or Dispose() races with initialisation).
+                if (!timelinePage.IsClosed)
                 {
-                    OnPageBroadcast?.Invoke(jsonData);
-                    return Task.CompletedTask;
-                });
+                    try
+                    {
+                        await timelinePage.ExposeFunctionAsync("__cactbridgeBroadcast", (string jsonData) =>
+                        {
+                            OnPageBroadcast?.Invoke(jsonData);
+                            return Task.CompletedTask;
+                        });
+                    }
+                    catch (TargetClosedException ex)
+                    {
+                        log.Warning($"[CactBridge] Timeline page closed during function binding: {ex.Message}");
+                        await StopBrowserAsync();
+                        return;
+                    }
+                }
+                else
+                {
+                    log.Warning("[CactBridge] Timeline page was already closed before function binding");
+                    await StopBrowserAsync();
+                    return;
+                }
             }
             else
             {
