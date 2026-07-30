@@ -353,6 +353,54 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.Separator();
 
                 // ----------------------------------------------------------
+                // Game Alert Notifications (native FFXIV error toasts)
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Game Alert Notifications");
+                ImGui.Spacing();
+
+                var enableGameAlerts = configuration.EnableGameAlerts;
+                if (ImGui.Checkbox("Enable game alerts (red error toasts with timer bars)", ref enableGameAlerts))
+                {
+                    configuration.EnableGameAlerts = enableGameAlerts;
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Displays callouts as native FFXIV error toasts \u2014 the red alerts with timer bars that appear at the top of the screen.\nThese work independently of the overlay and can be used together or separately.");
+
+                if (configuration.EnableGameAlerts)
+                {
+                    ImGui.Indent(16f);
+
+                    var gameAlertAlarm = configuration.GameAlertShowAlarm;
+                    if (ImGui.Checkbox("Show Alarm alerts as game toasts", ref gameAlertAlarm))
+                    {
+                        configuration.GameAlertShowAlarm = gameAlertAlarm;
+                        configuration.Save();
+                    }
+
+                    var gameAlertAlert = configuration.GameAlertShowAlert;
+                    if (ImGui.Checkbox("Show Alert alerts as game toasts", ref gameAlertAlert))
+                    {
+                        configuration.GameAlertShowAlert = gameAlertAlert;
+                        configuration.Save();
+                    }
+
+                    var gameAlertInfo = configuration.GameAlertShowInfo;
+                    if (ImGui.Checkbox("Show Info alerts as game toasts", ref gameAlertInfo))
+                    {
+                        configuration.GameAlertShowInfo = gameAlertInfo;
+                        configuration.Save();
+                    }
+
+                    ImGui.Unindent(16f);
+                    ImGui.Spacing();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
                 // Text-to-Speech (TTS)
                 // ----------------------------------------------------------
                 ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Text-to-Speech");

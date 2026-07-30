@@ -345,6 +345,10 @@ public sealed class Plugin : IDalamudPlugin
                 Message = msg
             });
 
+        // Drain game alert queue — shows native FFXIV error toasts (red alerts with timer bars)
+        while (ws.TryDequeueGameAlert(out var gameAlert))
+            ToastGui.ShowError(gameAlert.text);
+
         // Drain toast queue — fires real FFXIV toasts when in Toast style
         while (ws.TryDequeueToast(out var toastMsg))
             ToastGui.ShowQuest(toastMsg);

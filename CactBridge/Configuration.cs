@@ -103,6 +103,22 @@ public class Configuration : IPluginConfiguration
     public bool OutputToChatAnnouncement { get; set; } = false;
 
     // -----------------------------------------------------------------------
+    // Game alert notifications (native FFXIV error toasts with timer bars)
+    // -----------------------------------------------------------------------
+
+    /// <summary>Master toggle for displaying alerts as native FFXIV error toasts (red alerts with timer bars).</summary>
+    public bool EnableGameAlerts { get; set; } = false;
+
+    /// <summary>When true, Alarm-level alerts are shown as game error toasts.</summary>
+    public bool GameAlertShowAlarm { get; set; } = true;
+
+    /// <summary>When true, Alert-level alerts are shown as game error toasts.</summary>
+    public bool GameAlertShowAlert { get; set; } = true;
+
+    /// <summary>When true, Info-level alerts are shown as game error toasts.</summary>
+    public bool GameAlertShowInfo { get; set; } = false;
+
+    // -----------------------------------------------------------------------
     // Text-to-speech (TTS) settings
     // -----------------------------------------------------------------------
 

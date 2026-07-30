@@ -65,6 +65,7 @@ public sealed class WebSocketService : IDisposable
     private readonly CancellationTokenSource cts         = new();
     private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly ConcurrentQueue<string> toastQueue  = new();
+    private readonly ConcurrentQueue<(string text, AlertType type)> gameAlertQueue = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
     private int              rawMessageCount;     // Total messages received since connect
@@ -1288,6 +1289,21 @@ public sealed class WebSocketService : IDisposable
 
     private void EnqueueAlert(CactbotAlert alert)
     {
+        // Enqueue for game alerts (native FFXIV error toast) if enabled
+        if (config.EnableGameAlerts)
+        {
+            bool shouldShowGameAlert = alert.Type switch
+            {
+                AlertType.Alarm => config.GameAlertShowAlarm,
+                AlertType.Alert => config.GameAlertShowAlert,
+                AlertType.Info => config.GameAlertShowInfo,
+                _ => false
+            };
+
+            if (shouldShowGameAlert)
+                gameAlertQueue.Enqueue((alert.Text, alert.Type));
+        }
+
         // In Toast style, send as a real FFXIV toast instead of rendering in the overlay.
         // Toasts queue naturally in the game UI (one at a time, with native duration).
         if (config.AlertOverlayStyle == OverlayStyle.Toast)
@@ -1416,6 +1432,15 @@ public sealed class WebSocketService : IDisposable
     /// messages to <c>IChatGui</c>.
     /// </summary>
     public bool TryDequeueChat(out string message) => chatQueue.TryDequeue(out message!);
+
+    /// <summary>
+    /// Tries to dequeue the next game alert (for native FFXIV error toast display).
+    /// Call this from the framework update loop to drain the queue and show game alerts.
+    /// </summary>
+    public bool TryDequeueGameAlert(out (string text, AlertType type) alert)
+    {
+        return gameAlertQueue.TryDequeue(out alert);
+    }
 
     /// <summary>
     /// Enqueues a message to be shown as a real FFXIV toast.
