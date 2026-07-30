@@ -1289,37 +1289,41 @@ public sealed class WebSocketService : IDisposable
 
     private void EnqueueAlert(CactbotAlert alert)
     {
-        // Enqueue for game alerts (native FFXIV error toast) if enabled
-        if (config.EnableGameAlerts)
+        // Route based on overlay style
+        switch (config.AlertOverlayStyle)
         {
-            bool shouldShowGameAlert = alert.Type switch
-            {
-                AlertType.Alarm => config.GameAlertShowAlarm,
-                AlertType.Alert => config.GameAlertShowAlert,
-                AlertType.Info => config.GameAlertShowInfo,
-                _ => false
-            };
+            case OverlayStyle.GameAlert:
+                // Display as native FFXIV error toasts (red alerts with timer bars).
+                // Respect the per-type filter toggles so users can choose which
+                // severity levels trigger game alerts.
+                bool shouldShowGameAlert = alert.Type switch
+                {
+                    AlertType.Alarm => config.GameAlertShowAlarm,
+                    AlertType.Alert => config.GameAlertShowAlert,
+                    AlertType.Info => config.GameAlertShowInfo,
+                    _ => false
+                };
 
-            if (shouldShowGameAlert)
-                gameAlertQueue.Enqueue((alert.Text, alert.Type));
-        }
+                if (shouldShowGameAlert)
+                    gameAlertQueue.Enqueue((alert.Text, alert.Type));
+                break;
 
-        // In Toast style, send as a real FFXIV toast instead of rendering in the overlay.
-        // Toasts queue naturally in the game UI (one at a time, with native duration).
-        if (config.AlertOverlayStyle == OverlayStyle.Toast)
-        {
-            toastQueue.Enqueue(alert.Text);
-        }
-        else
-        {
-            lock (alertLock)
-            {
-                alerts.Add(alert);
+            case OverlayStyle.Toast:
+                // Send as a real FFXIV quest toast instead of rendering in the overlay.
+                // Toasts queue naturally in the game UI (one at a time, with native duration).
+                toastQueue.Enqueue(alert.Text);
+                break;
 
-                // Bound the list so memory usage stays predictable
-                if (alerts.Count > MaxStoredAlerts)
-                    alerts.RemoveRange(0, alerts.Count - MaxStoredAlerts);
-            }
+            default: // Custom
+                lock (alertLock)
+                {
+                    alerts.Add(alert);
+
+                    // Bound the list so memory usage stays predictable
+                    if (alerts.Count > MaxStoredAlerts)
+                        alerts.RemoveRange(0, alerts.Count - MaxStoredAlerts);
+                }
+                break;
         }
 
         if (config.OutputToChatAnnouncement)

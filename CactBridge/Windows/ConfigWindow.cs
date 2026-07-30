@@ -117,13 +117,13 @@ public class ConfigWindow : Window, IDisposable
                 // ----------------------------------------------------------
                 var style = (int)configuration.AlertOverlayStyle;
                 ImGui.SetNextItemWidth(180f);
-                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0"))
+                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0Game Alert\0"))
                 {
                     configuration.AlertOverlayStyle = (OverlayStyle)style;
                     configuration.Save();
                 }
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system");
+                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)");
 
                 ImGui.Spacing();
                 ImGui.Separator();
@@ -358,43 +358,42 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Game Alert Notifications");
                 ImGui.Spacing();
 
-                var enableGameAlerts = configuration.EnableGameAlerts;
-                if (ImGui.Checkbox("Enable game alerts (red error toasts with timer bars)", ref enableGameAlerts))
+                if (configuration.AlertOverlayStyle == OverlayStyle.GameAlert)
                 {
-                    configuration.EnableGameAlerts = enableGameAlerts;
-                    configuration.Save();
-                }
-                ImGui.SameLine();
-                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
-                if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Displays callouts as native FFXIV error toasts \u2014 the red alerts with timer bars that appear at the top of the screen.\nThese work independently of the overlay and can be used together or separately.");
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Game Alert style is active \u2014 callouts appear as red error toasts with timer bars.");
+                    ImGui.Spacing();
 
-                if (configuration.EnableGameAlerts)
-                {
                     ImGui.Indent(16f);
 
                     var gameAlertAlarm = configuration.GameAlertShowAlarm;
-                    if (ImGui.Checkbox("Show Alarm alerts as game toasts", ref gameAlertAlarm))
+                    if (ImGui.Checkbox("Show Alarm alerts", ref gameAlertAlarm))
                     {
                         configuration.GameAlertShowAlarm = gameAlertAlarm;
                         configuration.Save();
                     }
 
                     var gameAlertAlert = configuration.GameAlertShowAlert;
-                    if (ImGui.Checkbox("Show Alert alerts as game toasts", ref gameAlertAlert))
+                    if (ImGui.Checkbox("Show Alert alerts", ref gameAlertAlert))
                     {
                         configuration.GameAlertShowAlert = gameAlertAlert;
                         configuration.Save();
                     }
 
                     var gameAlertInfo = configuration.GameAlertShowInfo;
-                    if (ImGui.Checkbox("Show Info alerts as game toasts", ref gameAlertInfo))
+                    if (ImGui.Checkbox("Show Info alerts", ref gameAlertInfo))
                     {
                         configuration.GameAlertShowInfo = gameAlertInfo;
                         configuration.Save();
                     }
 
                     ImGui.Unindent(16f);
+                    ImGui.Spacing();
+                }
+                else
+                {
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Select \"Game Alert\" from the overlay style dropdown above to use red error toasts with timer bars.");
                     ImGui.Spacing();
                 }
 

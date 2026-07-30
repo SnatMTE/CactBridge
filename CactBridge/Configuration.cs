@@ -32,6 +32,7 @@ public enum OverlayStyle
 {
     Custom = 0,
     Toast = 1,
+    GameAlert = 2,
 }
 
 [Serializable]

@@ -31,18 +31,35 @@ public sealed class BrowserService : IDisposable
     public event Action<BrowserState>? StateChanged;
 
     private BrowserState state = BrowserState.Idle;
+    private BrowserState lastNotifiedState = BrowserState.Idle;
+    private DateTime lastStateChangeTime = DateTime.MinValue;
+    private DateTime lastRestartTime = DateTime.MinValue;
 
     public BrowserState State
     {
         get => state;
         private set
         {
+            if (state == value) return; // No change, don't notify
+            
             state = value;
-            StateChanged?.Invoke(value);
+            
+            // Throttle state change notifications to prevent spam
+            // (e.g., rapid Error -> Launching -> Error loops)
+            var now = DateTime.UtcNow;
+            if (lastNotifiedState != value || (now - lastStateChangeTime).TotalSeconds > 2.0)
+            {
+                lastNotifiedState = value;
+                lastStateChangeTime = now;
+                StateChanged?.Invoke(value);
+            }
         }
     }
     public int          DownloadPct    { get; private set; }   // 0-100 while downloading (not available in this version)
     public bool         IsRunning      => State == BrowserState.Running;
+
+    /// <summary>Descriptive error message from the last failure.</summary>
+    public string LastError { get; private set; } = string.Empty;
 
     public string Status => State switch
     {
@@ -50,7 +67,7 @@ public sealed class BrowserService : IDisposable
         BrowserState.Downloading => $"Downloading Chromium… {DownloadPct}%",
         BrowserState.Launching   => "Launching…",
         BrowserState.Running     => "Running",
-        BrowserState.Error       => "Error - check /xllog",
+        BrowserState.Error       => string.IsNullOrEmpty(LastError) ? "Error - check /xllog" : $"Error: {LastError}",
         _                        => "Unknown",
     };
 
@@ -84,6 +101,15 @@ public sealed class BrowserService : IDisposable
     /// string with shape <c>{ type, text, time?, ... }</c>.
     /// </summary>
     public Action<string>? OnPageBroadcast { get; set; }
+
+    // -----------------------------------------------------------------------
+    // Constants
+    // -----------------------------------------------------------------------
+
+    // Navigation timeout in milliseconds. If the overlay URL cannot be reached
+    // within this time (e.g. proxy.iinact.com is unreachable), we bail out
+    // with an error instead of hanging indefinitely in the Launching state.
+    private const int NavigationTimeoutMs = 15_000;
 
     // -----------------------------------------------------------------------
     // Private state
@@ -122,8 +148,18 @@ public sealed class BrowserService : IDisposable
 
     public void Restart()
     {
+        // Throttle rapid restart attempts to prevent crash loops
+        var now = DateTime.UtcNow;
+        if ((now - lastRestartTime).TotalSeconds < 5.0)
+        {
+            log.Warning("[CactBridge] Restart throttled - too soon after last attempt");
+            return;
+        }
+        lastRestartTime = now;
+        
         cts.Cancel();
         cts = new CancellationTokenSource();
+        LastError = string.Empty;
         _ = StopBrowserAsync().ContinueWith(_ => StartAsync());
     }
 
@@ -285,6 +321,8 @@ public sealed class BrowserService : IDisposable
         var ct = cts.Token;
         try
         {
+            LastError = string.Empty;
+
             // ------------------------------------------------------------------
             // 1. Ensure Chromium is present (downloads ~150 MB on first run)
             // ------------------------------------------------------------------
@@ -367,19 +405,36 @@ public sealed class BrowserService : IDisposable
             if (ct.IsCancellationRequested) { await StopBrowserAsync(); return; }
 
             // ------------------------------------------------------------------
-            // 3. Navigate to Cactbot overlay (alerts page)
+            // 3. Navigate to Cactbot overlay (alerts page) with timeout
             // ------------------------------------------------------------------
             alertsPage = await browser.NewPageAsync();
             alertsPage.Console += (_, msg) =>
                 log.Debug($"[CactBridge] [alerts] {msg.Message.Text}");
-            await alertsPage.GoToAsync(overlayUrl);
+
+            // Set a navigation timeout so we don't hang in Launching state
+            // when the overlay URL is unreachable.
+            alertsPage.DefaultNavigationTimeout = NavigationTimeoutMs;
+
+            try
+            {
+                await alertsPage.GoToAsync(overlayUrl, new NavigationOptions { Timeout = NavigationTimeoutMs });
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                log.Error($"[CactBridge] Alerts page navigation failed: {ex.Message}");
+                LastError = $"Cannot reach overlay URL: {ex.Message}";
+                State = BrowserState.Error;
+                await StopBrowserAsync();
+                return;
+            }
+
             log.Information($"[CactBridge] Alerts page → {overlayUrl}");
 
             // Expose a native bridge so the relay JS can send data back to us
             // without needing the OverlayPlugin WebSocket.
             // Gracefully handle the case where the page is already being closed
             // (e.g. Restart() or Dispose() races with initialisation).
-            if (!alertsPage.IsClosed)
+            if (alertsPage is { IsClosed: false })
             {
                 try
                 {
@@ -406,7 +461,7 @@ public sealed class BrowserService : IDisposable
             if (ct.IsCancellationRequested) { await StopBrowserAsync(); return; }
 
             // ------------------------------------------------------------------
-            // 4. Navigate to Cactbot overlay (timeline page)
+            // 4. Navigate to Cactbot overlay (timeline page) with timeout
             // ------------------------------------------------------------------
             if (!string.IsNullOrWhiteSpace(timelineUrl))
             {
@@ -414,13 +469,28 @@ public sealed class BrowserService : IDisposable
                 timelinePage = await browser.NewPageAsync();
                 timelinePage.Console += (_, msg) =>
                     log.Debug($"[CactBridge] [timeline] {msg.Message.Text}");
-                await timelinePage.GoToAsync(timelineUrl);
+
+                timelinePage.DefaultNavigationTimeout = NavigationTimeoutMs;
+
+                try
+                {
+                    await timelinePage.GoToAsync(timelineUrl, new NavigationOptions { Timeout = NavigationTimeoutMs });
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    log.Error($"[CactBridge] Timeline page navigation failed: {ex.Message}");
+                    TimelineStatus = "Error";
+                    LastError = $"Cannot reach timeline URL: {ex.Message}";
+                    // Continue without timeline — alerts page may still work
+                    timelinePage = null;
+                }
+
                 TimelineStatus = "Running";
                 log.Information($"[CactBridge] Timeline page → {timelineUrl}");
 
                 // Gracefully handle the case where the page is already being closed
                 // (e.g. Restart() or Dispose() races with initialisation).
-                if (!timelinePage.IsClosed)
+                if (timelinePage is { IsClosed: false })
                 {
                     try
                     {
@@ -437,7 +507,7 @@ public sealed class BrowserService : IDisposable
                         return;
                     }
                 }
-                else
+                else if (timelinePage != null)
                 {
                     log.Warning("[CactBridge] Timeline page was already closed before function binding");
                     await StopBrowserAsync();
@@ -465,11 +535,14 @@ public sealed class BrowserService : IDisposable
         }
         catch (OperationCanceledException)
         {
+            LastError = string.Empty;
             State = BrowserState.Idle;
             TimelineStatus = "Idle";
         }
         catch (Exception ex)
         {
+            if (string.IsNullOrEmpty(LastError))
+                LastError = ex.Message;
             State = BrowserState.Error;
             TimelineStatus = "Error";
             log.Error($"[CactBridge] BrowserService error: {ex}");

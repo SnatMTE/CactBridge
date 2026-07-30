@@ -180,8 +180,14 @@ public sealed class Plugin : IDalamudPlugin
     // Browser installation announcements
     // -----------------------------------------------------------------------
 
+    private BrowserService.BrowserState lastAnnouncedState = BrowserService.BrowserState.Idle;
+
     private void OnBrowserStateChanged(BrowserService.BrowserState state)
     {
+        // Prevent duplicate notifications for the same state
+        if (lastAnnouncedState == state) return;
+        lastAnnouncedState = state;
+
         // StateChanged fires from the browser service's background thread,
         // but Dalamud notifications must be posted on the framework thread.
         Framework.RunOnFrameworkThread(() =>
@@ -213,9 +219,12 @@ public sealed class Plugin : IDalamudPlugin
                     });
                     break;
                 case BrowserService.BrowserState.Error:
+                    var errMsg = string.IsNullOrEmpty(browserService?.LastError)
+                        ? "Browser failed to start — check /xllog for details."
+                        : $"Browser error: {browserService.LastError}";
                     NotificationManager.AddNotification(new Notification
                     {
-                        Content = "Browser failed to start — check /xllog for details.",
+                        Content = errMsg,
                         Title   = "CactBridge",
                         Type    = NotificationType.Error
                     });
