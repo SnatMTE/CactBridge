@@ -107,9 +107,11 @@ public sealed class BrowserService : IDisposable
     // -----------------------------------------------------------------------
 
     // Navigation timeout in milliseconds. If the overlay URL cannot be reached
-    // within this time (e.g. proxy.iinact.com is unreachable), we bail out
+    // within this time (e.g. proxy.iinact.com is slow to respond), we bail out
     // with an error instead of hanging indefinitely in the Launching state.
-    private const int NavigationTimeoutMs = 15_000;
+    // Increased from 15s to 30s to accommodate slow networks when loading
+    // remote Cactbot assets (JS/CSS bundles hosted on proxy.iinact.com).
+    private const int NavigationTimeoutMs = 30_000;
 
     // -----------------------------------------------------------------------
     // Private state
@@ -381,7 +383,7 @@ public sealed class BrowserService : IDisposable
                     "--disable-dev-shm-usage",
                     "--log-level=3",
 
-                    // Memory reduction 
+                    // Memory reduction (balanced — multi-process for stability)
                     "--disable-extensions",
                     "--disable-background-networking",
                     "--disable-default-apps",
@@ -394,8 +396,7 @@ public sealed class BrowserService : IDisposable
                     "--disable-breakpad",
                     "--disable-backgrounding-occluded-windows",
                     "--disable-renderer-backgrounding",
-                    "--js-flags=--max-old-space-size=64 --optimize-for-size --gc-interval=100",
-                    "--single-process",
+                    "--js-flags=--max-old-space-size=128 --optimize-for-size --gc-interval=100",
                     "--disable-features=TranslateUI,Translate,BlinkGenPropertyTrees,"
                     + "IsolateOrigins,site-per-process,AudioServiceSandbox",
                     "--default-background-timer-throttling=false",
