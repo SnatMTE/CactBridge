@@ -34,6 +34,7 @@ public enum OverlayStyle
     Toast = 1,
     GameAlert = 2,
     GimmickHint = 3,
+    BattleTalk = 4,
 }
 
 [Serializable]
@@ -140,6 +141,29 @@ public class Configuration : IPluginConfiguration
     /// does not provide one. Clamped to 1–60 seconds at display time.
     /// </summary>
     public float GimmickHintFallbackDuration { get; set; } = 5f;
+
+    // -----------------------------------------------------------------------
+    // Battle talk notifications (native FFXIV in-combat dialogue boxes with
+    // the speaker's name and a portrait icon — the game's "Battle Talk" box)
+    // -----------------------------------------------------------------------
+
+    /// <summary>When true, Alarm-level alerts are shown as native battle dialogue boxes.</summary>
+    public bool BattleTalkShowAlarm { get; set; } = true;
+
+    /// <summary>When true, Alert-level alerts are shown as native battle dialogue boxes.</summary>
+    public bool BattleTalkShowAlert { get; set; } = true;
+
+    /// <summary>When true, Info-level alerts are shown as native battle dialogue boxes.</summary>
+    public bool BattleTalkShowInfo { get; set; } = false;
+
+    /// <summary>
+    /// Fallback duration (seconds) for the battle dialogue box when the trigger
+    /// does not provide one. Clamped to 1–60 seconds at display time.
+    /// </summary>
+    public float BattleTalkFallbackDuration { get; set; } = 5f;
+
+    /// <summary>Battle dialogue box style: 0 = default white, 6 = linkshell, 7 = dark, 9/11 = robot (blue).</summary>
+    public int BattleTalkStyle { get; set; } = 0;
 
     // -----------------------------------------------------------------------
     // Text-to-speech (TTS) settings

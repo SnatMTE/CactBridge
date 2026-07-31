@@ -417,6 +417,11 @@ public sealed class Plugin : IDalamudPlugin
         while (ws.TryDequeueGimmickHint(out var gimmickHint))
             ShowGimmickHint(gimmickHint.text, gimmickHint.type, gimmickHint.duration);
 
+        // Drain battle talk queue — shows native FFXIV in-combat "Battle Talk"
+        // dialogue boxes (speaker name plate + portrait icon)
+        while (ws.TryDequeueBattleTalk(out var battleTalk))
+            ShowBattleTalk(battleTalk.text, battleTalk.type, battleTalk.duration);
+
         // Drain toast queue — fires real FFXIV toasts when in Toast style
         while (ws.TryDequeueToast(out var toastMsg))
             ToastGui.ShowQuest(toastMsg);
@@ -495,6 +500,29 @@ public sealed class Plugin : IDalamudPlugin
             var module = RaptureAtkModule.Instance();
             if (module != null)
                 module->ShowTextGimmickHint(text, style, seconds);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Battle talk display — native FFXIV in-combat "Battle Talk" dialogue box
+    // (the game's dialogue box with a speaker name plate).
+    // Must run on the game's main thread (called from OnFrameworkUpdate).
+    // -----------------------------------------------------------------------
+    private void ShowBattleTalk(string text, AlertType type, float duration)
+    {
+        var fallback = Configuration.BattleTalkFallbackDuration > 0f
+            ? Configuration.BattleTalkFallbackDuration
+            : 5f;
+        var seconds = System.Math.Clamp(duration > 0f ? duration : fallback, 1f, 60f);
+        var style = (byte)System.Math.Clamp(Configuration.BattleTalkStyle, 0, 255);
+        var name = string.IsNullOrWhiteSpace(localPlayerName) ? "CactBridge" : localPlayerName;
+
+        unsafe
+        {
+            var uiModule = UIModule.Instance();
+            if (uiModule == null) return;
+
+            uiModule->ShowBattleTalk(name, text, seconds, style);
         }
     }
 }

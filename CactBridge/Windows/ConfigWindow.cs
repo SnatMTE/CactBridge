@@ -117,13 +117,13 @@ public class ConfigWindow : Window, IDisposable
                 // ----------------------------------------------------------
                 var style = (int)configuration.AlertOverlayStyle;
                 ImGui.SetNextItemWidth(180f);
-                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0Game Alert\0Gimmick Hint\0"))
+                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0Game Alert\0Gimmick Hint\0Battle Talk\0"))
                 {
                     configuration.AlertOverlayStyle = (OverlayStyle)style;
                     configuration.Save();
                 }
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)\nGimmick Hint — displays alerts as native center-screen announcements with a countdown timer bar (like Limit Break)");
+                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)\nGimmick Hint — displays alerts as native center-screen announcements with a countdown timer bar (like Limit Break)\nBattle Talk — displays alerts as native in-combat dialogue boxes with a speaker name and portrait (like NPC battle dialogue)");
 
                 ImGui.Spacing();
                 ImGui.Separator();
@@ -454,6 +454,90 @@ public class ConfigWindow : Window, IDisposable
                 {
                     ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
                         "Select \"Gimmick Hint\" from the overlay style dropdown above to use native center-screen announcements with a countdown timer bar.");
+                    ImGui.Spacing();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Battle Talk Notifications (native FFXIV in-combat dialogue
+                // boxes with a speaker name)
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Battle Talk Notifications");
+                ImGui.Spacing();
+
+                if (configuration.AlertOverlayStyle == OverlayStyle.BattleTalk)
+                {
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Battle Talk style is active \u2014 callouts appear as native in-combat dialogue boxes with a speaker name.");
+                    ImGui.Spacing();
+
+                    ImGui.Indent(16f);
+
+                    var battleTalkAlarm = configuration.BattleTalkShowAlarm;
+                    if (ImGui.Checkbox("Show Alarm alerts", ref battleTalkAlarm))
+                    {
+                        configuration.BattleTalkShowAlarm = battleTalkAlarm;
+                        configuration.Save();
+                    }
+
+                    var battleTalkAlert = configuration.BattleTalkShowAlert;
+                    if (ImGui.Checkbox("Show Alert alerts", ref battleTalkAlert))
+                    {
+                        configuration.BattleTalkShowAlert = battleTalkAlert;
+                        configuration.Save();
+                    }
+
+                    var battleTalkInfo = configuration.BattleTalkShowInfo;
+                    if (ImGui.Checkbox("Show Info alerts", ref battleTalkInfo))
+                    {
+                        configuration.BattleTalkShowInfo = battleTalkInfo;
+                        configuration.Save();
+                    }
+
+                    var battleTalkFallbackDuration = configuration.BattleTalkFallbackDuration;
+                    ImGui.SetNextItemWidth(120f);
+                    if (ImGui.DragFloat("Fallback timer (s)", ref battleTalkFallbackDuration, 0.5f, 1f, 60f, "%.0f"))
+                    {
+                        configuration.BattleTalkFallbackDuration = Math.Clamp(battleTalkFallbackDuration, 1f, 60f);
+                        configuration.Save();
+                    }
+                    ImGui.SameLine();
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("How long the battle dialogue box stays on screen when the trigger doesn't provide its own duration.");
+
+                    // Map the stored style byte (0/6/7/9) to a combo index.
+                    var battleTalkStyleIndex = configuration.BattleTalkStyle switch
+                    {
+                        6 => 1,
+                        7 => 2,
+                        9 => 3,
+                        _ => 0,
+                    };
+                    ImGui.SetNextItemWidth(180f);
+                    if (ImGui.Combo("Dialogue box style", ref battleTalkStyleIndex,
+                            "Default (white)\0Linkshell\0Dark\0Robot (blue)\0"))
+                    {
+                        configuration.BattleTalkStyle = battleTalkStyleIndex switch
+                        {
+                            1 => 6,
+                            2 => 7,
+                            3 => 9,
+                            _ => 0,
+                        };
+                        configuration.Save();
+                    }
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("The background style of the battle dialogue box. Default white matches NPC dialogue; Dark matches the deep dungeon look.");
+
+                    ImGui.Unindent(16f);
+                    ImGui.Spacing();
+                }
+                else
+                {
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Select \"Battle Talk\" from the overlay style dropdown above to use native in-combat dialogue boxes with a speaker name.");
                     ImGui.Spacing();
                 }
 

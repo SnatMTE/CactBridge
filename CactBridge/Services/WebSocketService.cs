@@ -67,6 +67,7 @@ public sealed class WebSocketService : IDisposable
     private readonly ConcurrentQueue<string> toastQueue  = new();
     private readonly ConcurrentQueue<(string text, AlertType type)> gameAlertQueue = new();
     private readonly ConcurrentQueue<(string text, AlertType type, float duration)> gimmickHintQueue = new();
+    private readonly ConcurrentQueue<(string text, AlertType type, float duration)> battleTalkQueue = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
     private int              rawMessageCount;     // Total messages received since connect
@@ -1326,6 +1327,23 @@ public sealed class WebSocketService : IDisposable
                     gimmickHintQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
                 break;
 
+            case OverlayStyle.BattleTalk:
+                // Display as native FFXIV in-combat "Battle Talk" dialogue
+                // boxes (speaker name plate + portrait icon). Respect the
+                // per-type filter toggles so users can choose which severity
+                // levels trigger them.
+                bool shouldShowBattleTalk = alert.Type switch
+                {
+                    AlertType.Alarm => config.BattleTalkShowAlarm,
+                    AlertType.Alert => config.BattleTalkShowAlert,
+                    AlertType.Info => config.BattleTalkShowInfo,
+                    _ => false
+                };
+
+                if (shouldShowBattleTalk)
+                    battleTalkQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
+                break;
+
             case OverlayStyle.Toast:
                 // Send as a real FFXIV quest toast instead of rendering in the overlay.
                 // Toasts queue naturally in the game UI (one at a time, with native duration).
@@ -1472,6 +1490,16 @@ public sealed class WebSocketService : IDisposable
     public bool TryDequeueGimmickHint(out (string text, AlertType type, float duration) alert)
     {
         return gimmickHintQueue.TryDequeue(out alert);
+    }
+
+    /// <summary>
+    /// Tries to dequeue the next battle talk (for native FFXIV in-combat
+    /// "Battle Talk" dialogue box display with a speaker name and portrait).
+    /// Call this from the framework update loop to drain the queue.
+    /// </summary>
+    public bool TryDequeueBattleTalk(out (string text, AlertType type, float duration) alert)
+    {
+        return battleTalkQueue.TryDequeue(out alert);
     }
 
     /// <summary>
