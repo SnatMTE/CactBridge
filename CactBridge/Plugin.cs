@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using Dalamud.Game.Command;
 using Dalamud.IoC;
@@ -7,6 +8,8 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Interface.ImGuiNotification;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using CactBridge.Models;
 using CactBridge.Services;
 using CactBridge.Windows;
 
@@ -106,74 +109,124 @@ public sealed class Plugin : IDalamudPlugin
     // -----------------------------------------------------------------------
     private void InitializeServices()
     {
-        Log.Information("[CactBridge] IINACT detected — initialising services...");
-
-        // Start the WebSocket service - connects and listens on a background Task
-        wsService = new WebSocketService(Log, Configuration);
-
-        // Start the relay HTTP server - serves raidboss-user.js to Cactbot
-        relayService   = new RelayHttpService(Log, _pluginDir);
-
-        // Start the TTS service - speaks alerts aloud via Windows SAPI
-        // Volume is automatically synced to the game's Voice sound channel.
-        ttsService = new TtsService(Log, Configuration, GameConfig);
-
-        // Launch headless browser with both alerts and timeline pages
-        browserService = new BrowserService(Log, _pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
-
-        // Forward ACT log lines from the plugin's WebSocket into the headless
-        // browser page, so the Cactbot timeline controller receives data even
-        // if the browser's own WebSocket connection to OverlayPlugin fails.
-        wsService.OnRawLogLine += browserService.ForwardLogLine;
-
-        // Forward zone-change events so Cactbot's PopupText.OnChangeZone fires,
-        // which calls ReloadTimelines() and activates the timeline for the zone.
-        wsService.OnZoneChanged += browserService.ForwardChangeZone;
-
-        // Receive broadcasts from the headless browser pages via the native
-        // PuppeteerSharp bridge (bypasses OverlayPlugin WebSocket entirely).
-        browserService.OnPageBroadcast += wsService.HandlePageBroadcast;
-
-        // Forward alerts to the TTS service for spoken output
-        wsService.OnAlertForTts += ttsService.Speak;
-
-        // Subscribe to browser state changes for subsequent steps
-        browserService.StateChanged += OnBrowserStateChanged;
-
-        // Create windows - OverlayWindow must exist before ConfigWindow
-        // so ConfigWindow can hold a reference to it
-        OverlayWindow             = new OverlayWindow(this, wsService);
-        TimelineOverlayWindow     = new TimelineOverlayWindow(this, wsService);
-        DamageMeterOverlayWindow  = new DamageMeterOverlayWindow(this, wsService);
-        ConfigWindow              = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, DamageMeterOverlayWindow, relayService, browserService, ttsService);
-
-        WindowSystem.AddWindow(ConfigWindow);
-        WindowSystem.AddWindow(OverlayWindow);
-        WindowSystem.AddWindow(TimelineOverlayWindow);
-        WindowSystem.AddWindow(DamageMeterOverlayWindow);
-
-
-        // All overlays should always remain visible.
-        OverlayWindow.IsOpen = true;
-        TimelineOverlayWindow.IsOpen = true;
-        DamageMeterOverlayWindow.IsOpen = true;
-
-
-        // Cache local player name for personal DPS lookup
-        localPlayerName = PlayerState.CharacterName;
-
-        // Re-cache player name on login (character switch)
-        ClientState.Login += OnLogin;
-
-        // Register DTR (server info bar) entries
-        partyDpsEntry = DtrBar.Get("CactBridge-PartyDPS", "0");
-        partyDpsEntry.Shown = false;
-
-        personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS", "0");
-        personalDpsEntry.Shown = false;
-
+        // Re-entrancy guard: set the flag FIRST so that even if a step below
+        // throws, we never retry initialisation every frame. Previously a
+        // mid-init failure left _initialized false, which caused a per-frame
+        // retry loop that spawned duplicate services and an endless browser
+        // restart loop (the "Loading Browser…" loop seen in the log).
+        if (_initialized) return;
         _initialized = true;
-        Log.Information("[CactBridge] Services initialised.");
+
+        try
+        {
+            Log.Information("[CactBridge] IINACT detected — initialising services...");
+
+            // Start the WebSocket service - connects and listens on a background Task
+            wsService = new WebSocketService(Log, Configuration);
+
+            // Start the relay HTTP server - serves raidboss-user.js to Cactbot
+            relayService   = new RelayHttpService(Log, _pluginDir);
+
+            // Start the TTS service - speaks alerts aloud via Windows SAPI
+            // Volume is automatically synced to the game's Voice sound channel.
+            ttsService = new TtsService(Log, Configuration, GameConfig);
+
+            // Launch headless browser with both alerts and timeline pages
+            browserService = new BrowserService(Log, _pluginDir, relayService.OverlayUrl, relayService.TimelineOverlayUrl);
+
+            // Forward ACT log lines from the plugin's WebSocket into the headless
+            // browser page, so the Cactbot timeline controller receives data even
+            // if the browser's own WebSocket connection to OverlayPlugin fails.
+            wsService.OnRawLogLine += browserService.ForwardLogLine;
+
+            // Forward zone-change events so Cactbot's PopupText.OnChangeZone fires,
+            // which calls ReloadTimelines() and activates the timeline for the zone.
+            wsService.OnZoneChanged += browserService.ForwardChangeZone;
+
+            // Receive broadcasts from the headless browser pages via the native
+            // PuppeteerSharp bridge (bypasses OverlayPlugin WebSocket entirely).
+            browserService.OnPageBroadcast += wsService.HandlePageBroadcast;
+
+            // Forward alerts to the TTS service for spoken output
+            wsService.OnAlertForTts += ttsService.Speak;
+
+            // Subscribe to browser state changes for subsequent steps
+            browserService.StateChanged += OnBrowserStateChanged;
+
+            // Create windows - OverlayWindow must exist before ConfigWindow
+            // so ConfigWindow can hold a reference to it
+            OverlayWindow             = new OverlayWindow(this, wsService);
+            TimelineOverlayWindow     = new TimelineOverlayWindow(this, wsService);
+            DamageMeterOverlayWindow  = new DamageMeterOverlayWindow(this, wsService);
+            ConfigWindow              = new ConfigWindow(this, wsService, OverlayWindow, TimelineOverlayWindow, DamageMeterOverlayWindow, relayService, browserService, ttsService);
+
+            // AddWindow throws if a window with the same name already exists.
+            // Guard each add so a partially-initialised state can't wedge the
+            // plugin into a retry loop.
+            AddWindowSafely(ConfigWindow);
+            AddWindowSafely(OverlayWindow);
+            AddWindowSafely(TimelineOverlayWindow);
+            AddWindowSafely(DamageMeterOverlayWindow);
+
+            // All overlays should always remain visible.
+            OverlayWindow.IsOpen = true;
+            TimelineOverlayWindow.IsOpen = true;
+            DamageMeterOverlayWindow.IsOpen = true;
+
+
+            // Cache local player name for personal DPS lookup
+            localPlayerName = PlayerState.CharacterName;
+
+            // Re-cache player name on login (character switch)
+            ClientState.Login += OnLogin;
+
+            // Register DTR (server info bar) entries.
+            // These may already be registered by a previous plugin instance
+            // that wasn't disposed yet; DtrBar.Get throws in that case. Log a
+            // warning and continue rather than aborting initialisation (which
+            // previously caused an infinite per-frame retry loop).
+            try
+            {
+                partyDpsEntry = DtrBar.Get("CactBridge-PartyDPS", "0");
+                partyDpsEntry.Shown = false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[CactBridge] Could not register Party DPS DTR entry: {ex.Message}");
+            }
+
+            try
+            {
+                personalDpsEntry = DtrBar.Get("CactBridge-PersonalDPS", "0");
+                personalDpsEntry.Shown = false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[CactBridge] Could not register Personal DPS DTR entry: {ex.Message}");
+            }
+
+            Log.Information("[CactBridge] Services initialised.");
+        }
+        catch (Exception ex)
+        {
+            // Log the failure once. Do NOT clear _initialized — retrying would
+            // create duplicate services and restart the browser in a loop.
+            Log.Error($"[CactBridge] Initialisation failed: {ex}");
+        }
+    }
+
+    /// <summary>Adds a window to the window system without throwing if a
+    /// window with the same name is already present.</summary>
+    private void AddWindowSafely(Window window)
+    {
+        try
+        {
+            WindowSystem.AddWindow(window);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"[CactBridge] Could not add window \"{window.WindowName}\": {ex.Message}");
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -358,6 +411,12 @@ public sealed class Plugin : IDalamudPlugin
         while (ws.TryDequeueGameAlert(out var gameAlert))
             ToastGui.ShowError(gameAlert.text);
 
+        // Drain center alert queue — shows native FFXIV center-screen gimmick
+        // hints with countdown timer bars (the game's "tells you what's going
+        // on" announcements, e.g. Limit Break)
+        while (ws.TryDequeueCenterAlert(out var centerAlert))
+            ShowCenterAlert(centerAlert.text, centerAlert.type, centerAlert.duration);
+
         // Drain toast queue — fires real FFXIV toasts when in Toast style
         while (ws.TryDequeueToast(out var toastMsg))
             ToastGui.ShowQuest(toastMsg);
@@ -409,6 +468,33 @@ public sealed class Plugin : IDalamudPlugin
         else if (personalDpsEntry != null)
         {
             personalDpsEntry.Shown = false;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Center alert display — native FFXIV "gimmick hint" (the center-screen
+    // announcement with a countdown timer bar the game uses to tell players
+    // what's going on, e.g. Limit Break / duty mechanic warnings).
+    // Must run on the game's main thread (called from OnFrameworkUpdate).
+    // -----------------------------------------------------------------------
+    private void ShowCenterAlert(string text, AlertType type, float duration)
+    {
+        // Alarm/Alert callouts are the important ones — show them with the red
+        // Warning styling. Info-level hints use the neutral Info styling.
+        var style = type == AlertType.Alarm || type == AlertType.Alert
+            ? RaptureAtkModule.TextGimmickHintStyle.Warning
+            : RaptureAtkModule.TextGimmickHintStyle.Info;
+
+        var fallback = Configuration.CenterAlertFallbackDuration > 0f
+            ? Configuration.CenterAlertFallbackDuration
+            : 5f;
+        var seconds = (int)System.Math.Clamp(duration > 0f ? duration : fallback, 1f, 60f);
+
+        unsafe
+        {
+            var module = RaptureAtkModule.Instance();
+            if (module != null)
+                module->ShowTextGimmickHint(text, style, seconds);
         }
     }
 }

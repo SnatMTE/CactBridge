@@ -117,13 +117,13 @@ public class ConfigWindow : Window, IDisposable
                 // ----------------------------------------------------------
                 var style = (int)configuration.AlertOverlayStyle;
                 ImGui.SetNextItemWidth(180f);
-                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0Game Alert\0"))
+                if (ImGui.Combo("Overlay style", ref style, "Custom\0Toast\0Game Alert\0Center Alert\0"))
                 {
                     configuration.AlertOverlayStyle = (OverlayStyle)style;
                     configuration.Save();
                 }
                 if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)");
+                    ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)\nCenter Alert — displays alerts as native center-screen announcements with a countdown timer bar (like Limit Break)");
 
                 ImGui.Spacing();
                 ImGui.Separator();
@@ -394,6 +394,66 @@ public class ConfigWindow : Window, IDisposable
                 {
                     ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
                         "Select \"Game Alert\" from the overlay style dropdown above to use red error toasts with timer bars.");
+                    ImGui.Spacing();
+                }
+
+                ImGui.Separator();
+
+                // ----------------------------------------------------------
+                // Center Alert Notifications (native FFXIV center-screen
+                // gimmick hints with countdown timer bars)
+                // ----------------------------------------------------------
+                ImGui.TextColored(new Vector4(1.00f, 0.85f, 0.10f, 1f), "Center Alert Notifications");
+                ImGui.Spacing();
+
+                if (configuration.AlertOverlayStyle == OverlayStyle.CenterAlert)
+                {
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Center Alert style is active \u2014 callouts appear as native center-screen announcements with a countdown timer bar.");
+                    ImGui.Spacing();
+
+                    ImGui.Indent(16f);
+
+                    var centerAlertAlarm = configuration.CenterAlertShowAlarm;
+                    if (ImGui.Checkbox("Show Alarm alerts", ref centerAlertAlarm))
+                    {
+                        configuration.CenterAlertShowAlarm = centerAlertAlarm;
+                        configuration.Save();
+                    }
+
+                    var centerAlertAlert = configuration.CenterAlertShowAlert;
+                    if (ImGui.Checkbox("Show Alert alerts", ref centerAlertAlert))
+                    {
+                        configuration.CenterAlertShowAlert = centerAlertAlert;
+                        configuration.Save();
+                    }
+
+                    var centerAlertInfo = configuration.CenterAlertShowInfo;
+                    if (ImGui.Checkbox("Show Info alerts", ref centerAlertInfo))
+                    {
+                        configuration.CenterAlertShowInfo = centerAlertInfo;
+                        configuration.Save();
+                    }
+
+                    var fallbackDuration = configuration.CenterAlertFallbackDuration;
+                    ImGui.SetNextItemWidth(120f);
+                    if (ImGui.DragFloat("Fallback timer (s)", ref fallbackDuration, 0.5f, 1f, 60f, "%.0f"))
+                    {
+                        configuration.CenterAlertFallbackDuration = Math.Clamp(fallbackDuration, 1f, 60f);
+                        configuration.Save();
+                    }
+                    ImGui.SameLine();
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("How long the center alert stays on screen (with its countdown timer) when the trigger doesn't provide its own duration.");
+
+                    ImGui.Unindent(16f);
+                    ImGui.Spacing();
+                }
+                else
+                {
+                    ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f),
+                        "Select \"Center Alert\" from the overlay style dropdown above to use native center-screen announcements with a countdown timer bar.");
                     ImGui.Spacing();
                 }
 
