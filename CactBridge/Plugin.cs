@@ -411,11 +411,11 @@ public sealed class Plugin : IDalamudPlugin
         while (ws.TryDequeueGameAlert(out var gameAlert))
             ToastGui.ShowError(gameAlert.text);
 
-        // Drain center alert queue — shows native FFXIV center-screen gimmick
+        // Drain gimmick hint queue — shows native FFXIV center-screen gimmick
         // hints with countdown timer bars (the game's "tells you what's going
         // on" announcements, e.g. Limit Break)
-        while (ws.TryDequeueCenterAlert(out var centerAlert))
-            ShowCenterAlert(centerAlert.text, centerAlert.type, centerAlert.duration);
+        while (ws.TryDequeueGimmickHint(out var gimmickHint))
+            ShowGimmickHint(gimmickHint.text, gimmickHint.type, gimmickHint.duration);
 
         // Drain toast queue — fires real FFXIV toasts when in Toast style
         while (ws.TryDequeueToast(out var toastMsg))
@@ -472,12 +472,12 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     // -----------------------------------------------------------------------
-    // Center alert display — native FFXIV "gimmick hint" (the center-screen
+    // Gimmick hint display — native FFXIV "gimmick hint" (the center-screen
     // announcement with a countdown timer bar the game uses to tell players
     // what's going on, e.g. Limit Break / duty mechanic warnings).
     // Must run on the game's main thread (called from OnFrameworkUpdate).
     // -----------------------------------------------------------------------
-    private void ShowCenterAlert(string text, AlertType type, float duration)
+    private void ShowGimmickHint(string text, AlertType type, float duration)
     {
         // Alarm/Alert callouts are the important ones — show them with the red
         // Warning styling. Info-level hints use the neutral Info styling.
@@ -485,8 +485,8 @@ public sealed class Plugin : IDalamudPlugin
             ? RaptureAtkModule.TextGimmickHintStyle.Warning
             : RaptureAtkModule.TextGimmickHintStyle.Info;
 
-        var fallback = Configuration.CenterAlertFallbackDuration > 0f
-            ? Configuration.CenterAlertFallbackDuration
+        var fallback = Configuration.GimmickHintFallbackDuration > 0f
+            ? Configuration.GimmickHintFallbackDuration
             : 5f;
         var seconds = (int)System.Math.Clamp(duration > 0f ? duration : fallback, 1f, 60f);
 

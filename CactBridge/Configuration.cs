@@ -33,7 +33,7 @@ public enum OverlayStyle
     Custom = 0,
     Toast = 1,
     GameAlert = 2,
-    CenterAlert = 3,
+    GimmickHint = 3,
 }
 
 [Serializable]
@@ -121,25 +121,25 @@ public class Configuration : IPluginConfiguration
     public bool GameAlertShowInfo { get; set; } = false;
 
     // -----------------------------------------------------------------------
-    // Center alert notifications (native FFXIV center-screen gimmick hints
+    // Gimmick hint notifications (native FFXIV center-screen gimmick hints
     // with countdown timer bars — the game's "tells you what's going on"
     // announcements, e.g. Limit Break / duty mechanic warnings)
     // -----------------------------------------------------------------------
 
     /// <summary>When true, Alarm-level alerts are shown as native center-screen gimmick hints.</summary>
-    public bool CenterAlertShowAlarm { get; set; } = true;
+    public bool GimmickHintShowAlarm { get; set; } = true;
 
     /// <summary>When true, Alert-level alerts are shown as native center-screen gimmick hints.</summary>
-    public bool CenterAlertShowAlert { get; set; } = true;
+    public bool GimmickHintShowAlert { get; set; } = true;
 
     /// <summary>When true, Info-level alerts are shown as native center-screen gimmick hints.</summary>
-    public bool CenterAlertShowInfo { get; set; } = false;
+    public bool GimmickHintShowInfo { get; set; } = false;
 
     /// <summary>
-    /// Fallback duration (seconds) for the center alert timer when the trigger
+    /// Fallback duration (seconds) for the gimmick hint timer when the trigger
     /// does not provide one. Clamped to 1–60 seconds at display time.
     /// </summary>
-    public float CenterAlertFallbackDuration { get; set; } = 5f;
+    public float GimmickHintFallbackDuration { get; set; } = 5f;
 
     // -----------------------------------------------------------------------
     // Text-to-speech (TTS) settings

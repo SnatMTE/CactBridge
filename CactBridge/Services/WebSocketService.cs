@@ -66,7 +66,7 @@ public sealed class WebSocketService : IDisposable
     private readonly ConcurrentQueue<string> chatQueue   = new();
     private readonly ConcurrentQueue<string> toastQueue  = new();
     private readonly ConcurrentQueue<(string text, AlertType type)> gameAlertQueue = new();
-    private readonly ConcurrentQueue<(string text, AlertType type, float duration)> centerAlertQueue = new();
+    private readonly ConcurrentQueue<(string text, AlertType type, float duration)> gimmickHintQueue = new();
     private readonly System.Collections.Generic.HashSet<string> seenTypes = new();
     private int              logLineCount;
     private int              rawMessageCount;     // Total messages received since connect
@@ -1309,21 +1309,21 @@ public sealed class WebSocketService : IDisposable
                     gameAlertQueue.Enqueue((alert.Text, alert.Type));
                 break;
 
-            case OverlayStyle.CenterAlert:
+            case OverlayStyle.GimmickHint:
                 // Display as native FFXIV center-screen gimmick hints with a
                 // countdown timer bar (the game's "tells you what's going on"
                 // announcements, e.g. Limit Break). Respect the per-type filter
                 // toggles so users can choose which severity levels trigger them.
-                bool shouldShowCenterAlert = alert.Type switch
+                bool shouldShowGimmickHint = alert.Type switch
                 {
-                    AlertType.Alarm => config.CenterAlertShowAlarm,
-                    AlertType.Alert => config.CenterAlertShowAlert,
-                    AlertType.Info => config.CenterAlertShowInfo,
+                    AlertType.Alarm => config.GimmickHintShowAlarm,
+                    AlertType.Alert => config.GimmickHintShowAlert,
+                    AlertType.Info => config.GimmickHintShowInfo,
                     _ => false
                 };
 
-                if (shouldShowCenterAlert)
-                    centerAlertQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
+                if (shouldShowGimmickHint)
+                    gimmickHintQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
                 break;
 
             case OverlayStyle.Toast:
@@ -1465,13 +1465,13 @@ public sealed class WebSocketService : IDisposable
     }
 
     /// <summary>
-    /// Tries to dequeue the next center alert (for native FFXIV center-screen
+    /// Tries to dequeue the next gimmick hint (for native FFXIV center-screen
     /// gimmick hint display with a countdown timer bar).
     /// Call this from the framework update loop to drain the queue.
     /// </summary>
-    public bool TryDequeueCenterAlert(out (string text, AlertType type, float duration) alert)
+    public bool TryDequeueGimmickHint(out (string text, AlertType type, float duration) alert)
     {
-        return centerAlertQueue.TryDequeue(out alert);
+        return gimmickHintQueue.TryDequeue(out alert);
     }
 
     /// <summary>
