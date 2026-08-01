@@ -1324,7 +1324,7 @@ public sealed class WebSocketService : IDisposable
                 };
 
                 if (shouldShowGimmickHint)
-                    gimmickHintQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
+                    gimmickHintQueue.Enqueue((alert.Text, alert.Type, EffectiveDuration(alert.Duration)));
                 break;
 
             case OverlayStyle.BattleTalk:
@@ -1341,7 +1341,7 @@ public sealed class WebSocketService : IDisposable
                 };
 
                 if (shouldShowBattleTalk)
-                    battleTalkQueue.Enqueue((alert.Text, alert.Type, alert.Duration));
+                    battleTalkQueue.Enqueue((alert.Text, alert.Type, EffectiveDuration(alert.Duration)));
                 break;
 
             case OverlayStyle.Toast:
@@ -1472,6 +1472,17 @@ public sealed class WebSocketService : IDisposable
     /// messages to <c>IChatGui</c>.
     /// </summary>
     public bool TryDequeueChat(out string message) => chatQueue.TryDequeue(out message!);
+
+    /// <summary>
+    /// Resolves the display duration for a timer-based callout. When the user
+    /// has set a manual callout duration override (greater than zero), that
+    /// always wins so callouts appear for exactly the configured time. Otherwise
+    /// the trigger-provided duration is used.
+    /// </summary>
+    private float EffectiveDuration(float triggerDuration)
+    {
+        return config.CalloutDurationOverride > 0f ? config.CalloutDurationOverride : triggerDuration;
+    }
 
     /// <summary>
     /// Tries to dequeue the next game alert (for native FFXIV error toast display).

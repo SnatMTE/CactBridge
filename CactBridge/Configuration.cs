@@ -98,6 +98,14 @@ public class Configuration : IPluginConfiguration
     /// <summary>How alerts are visually rendered: Custom (current) or Toast (game-style).</summary>
     public OverlayStyle AlertOverlayStyle { get; set; } = OverlayStyle.Toast;
 
+    /// <summary>
+    /// When greater than zero, forces timer-based callouts (Gimmick Hint and
+    /// Battle Talk) to appear for exactly this many seconds, overriding any
+    /// duration sent by the trigger. Set to 0 to use each trigger's own
+    /// duration (falling back to the per-style fallback duration).
+    /// </summary>
+    public float CalloutDurationOverride { get; set; } = 0f;
+
     // -----------------------------------------------------------------------
     // Chat output
     // -----------------------------------------------------------------------

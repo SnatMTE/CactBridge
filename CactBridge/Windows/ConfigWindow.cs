@@ -126,6 +126,24 @@ public class ConfigWindow : Window, IDisposable
                     ImGui.SetTooltip("Custom — renders alerts in the ImGui overlay with per-type colours and adjustable fonts\nToast — sends alerts as real FFXIV toasts via the game's native toast system\nGame Alert — displays alerts as red error toasts with timer bars (like duty warnings)\nGimmick Hint — displays alerts as native center-screen announcements with a countdown timer bar (like Limit Break)\nBattle Talk — displays alerts as native in-combat dialogue boxes with a speaker name and portrait (like NPC battle dialogue)");
 
                 ImGui.Spacing();
+
+                // ----------------------------------------------------------
+                // Callout duration override (applies to the timer-based
+                // styles: Gimmick Hint and Battle Talk)
+                // ----------------------------------------------------------
+                var calloutDuration = configuration.CalloutDurationOverride;
+                ImGui.SetNextItemWidth(120f);
+                if (ImGui.DragFloat("Callout duration (s)", ref calloutDuration, 0.5f, 0f, 60f, "%.0f"))
+                {
+                    configuration.CalloutDurationOverride = Math.Clamp(calloutDuration, 0f, 60f);
+                    configuration.Save();
+                }
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0.55f, 0.55f, 0.55f, 1f), "(?)");
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Forces Gimmick Hint and Battle Talk callouts to stay up for exactly this many seconds.\nSet to 0 to use each trigger's own duration instead.");
+
+                ImGui.Spacing();
                 ImGui.Separator();
 
                 // ----------------------------------------------------------
