@@ -627,7 +627,10 @@ public sealed class WebSocketService : IDisposable
         {
             var rawType = TryGetString(payload, "type", out var typeText) ? typeText : "info";
             var alertType = ParseAlertType(rawType);
-            var duration = TryGetFloat(payload, "duration", out var parsedDuration)
+            // Honor the relay-forwarded duration (Cactbot's display time for
+            // this severity) only when "Use Cactbot's timer" is enabled.
+            var duration = TryGetFloat(payload, "duration", out var parsedDuration) &&
+                           config.UseCactbotDurations
                 ? parsedDuration
                 : DefaultDuration(alertType);
 
@@ -716,12 +719,15 @@ public sealed class WebSocketService : IDisposable
                 return;
             }
 
-            // Standard alert shape: { type: "alarm"|"alert"|"info", text: "..." }
+            // Standard alert shape: { type: "alarm"|"alert"|"info", text: "...", duration?: n }
             if (TryGetString(payload, "text", out var baseText) && !string.IsNullOrWhiteSpace(baseText))
             {
                 var rawType = TryGetString(payload, "type", out var typeText) ? typeText : "info";
                 var alertType = ParseAlertType(rawType);
-                var duration = TryGetFloat(payload, "duration", out var parsedDuration)
+                // Honor the relay-forwarded duration (Cactbot's display time
+                // for this severity) only when "Use Cactbot's timer" is on.
+                var duration = TryGetFloat(payload, "duration", out var parsedDuration) &&
+                               config.UseCactbotDurations
                     ? parsedDuration
                     : DefaultDuration(alertType);
                 EnqueueAlert(baseText.Trim(), alertType, duration);

@@ -163,16 +163,36 @@
   // added to the DOM (class names confirmed from popup-text.ts
   // _makeTextElement: `const textElementClass = \`\${textType}-text\``).
   // This fires AFTER TransformText so the dedup Map prevents duplicates,
-  // but it carries the correct severity type.
+  // but it carries the correct severity type.  It also forwards the
+  // duration (in seconds) Cactbot shows each severity for, read from its
+  // per-severity options (DisplayAlarmTextForSeconds /
+  // DisplayAlertTextForSeconds / DisplayInfoTextForSeconds).  That is the
+  // resolved display duration Cactbot uses for any trigger that does not
+  // set its own durationSeconds / per-trigger Duration.
+  function cactbotSeverityDuration(textType) {
+    try {
+      if (typeof Options === 'undefined' || !Options) return null;
+      var key = 'Display' + textType.charAt(0).toUpperCase() +
+        textType.slice(1) + 'TextForSeconds';
+      var v = Options[key];
+      if (typeof v === 'number' && isFinite(v) && v > 0) return v;
+    } catch (e) { /* never break the observer */ }
+    return null;
+  }
+
   function checkNode(node) {
     if (node.nodeType !== 1) return;
     const cl = node.classList;
     if (!cl) return;
     const text = (node.innerText || node.textContent || '').trim();
     if (!text) return;
-    if      (cl.contains('alarm-text')) sendDeduped(text, 'alarm');
-    else if (cl.contains('alert-text')) sendDeduped(text, 'alert');
-    else if (cl.contains('info-text'))  sendDeduped(text, 'info');
+    var type = null;
+    if      (cl.contains('alarm-text')) type = 'alarm';
+    else if (cl.contains('alert-text')) type = 'alert';
+    else if (cl.contains('info-text'))  type = 'info';
+    if (!type) return;
+    var dur = cactbotSeverityDuration(type);
+    sendDeduped(text, type, dur ? { duration: dur } : undefined);
   }
 
   function startAlertObserver() {

@@ -143,6 +143,15 @@ public class ConfigWindow : Window, IDisposable
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip("Forces Gimmick Hint and Battle Talk callouts to stay up for exactly this many seconds.\nSet to 0 to use each trigger's own duration instead.");
 
+                var useCactbotDurations = configuration.UseCactbotDurations;
+                if (ImGui.Checkbox("Use Cactbot's timer for each callout", ref useCactbotDurations))
+                {
+                    configuration.UseCactbotDurations = useCactbotDurations;
+                    configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Use the display duration Cactbot shows each callout for (its per-severity\nDisplayAlarmTextForSeconds / DisplayAlertTextForSeconds / DisplayInfoTextForSeconds\noptions) instead of the plugin's built-in defaults.\nPriority: Callout duration (s) override > Cactbot's timer > per-style fallback.");
+
                 ImGui.Spacing();
                 ImGui.Separator();
 

@@ -106,6 +106,16 @@ public class Configuration : IPluginConfiguration
     /// </summary>
     public float CalloutDurationOverride { get; set; } = 0f;
 
+    /// <summary>
+    /// When true, timer-based callouts (Gimmick Hint and Battle Talk) use the
+    /// display duration Cactbot shows each severity for (its
+    /// DisplayAlarmTextForSeconds / DisplayAlertTextForSeconds /
+    /// DisplayInfoTextForSeconds options) instead of the built-in defaults.
+    /// A manual <see cref="CalloutDurationOverride"/> still takes priority
+    /// when set.
+    /// </summary>
+    public bool UseCactbotDurations { get; set; } = true;
+
     // -----------------------------------------------------------------------
     // Chat output
     // -----------------------------------------------------------------------
