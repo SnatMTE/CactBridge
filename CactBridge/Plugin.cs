@@ -493,13 +493,17 @@ public sealed class Plugin : IDalamudPlugin
         var fallback = Configuration.GimmickHintFallbackDuration > 0f
             ? Configuration.GimmickHintFallbackDuration
             : 5f;
-        var seconds = (int)System.Math.Clamp(duration > 0f ? duration : fallback, 1f, 60f);
+
+        // NOTE: the game's gimmick-hint duration is in 100ms units (the
+        // countdown timer bar ticks in 0.1s steps), NOT seconds. 5s => pass 50.
+        // See goatcorp/Dalamud#1918 and OmenTools' ToHundredMilliseconds.
+        var hundredMs = (int)System.Math.Clamp((duration > 0f ? duration : fallback) * 10f, 1f, 600f);
 
         unsafe
         {
             var module = RaptureAtkModule.Instance();
             if (module != null)
-                module->ShowTextGimmickHint(text, style, seconds);
+                module->ShowTextGimmickHint(text, style, hundredMs);
         }
     }
 
