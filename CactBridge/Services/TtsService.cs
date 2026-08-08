@@ -11,13 +11,9 @@ using Dalamud.Plugin.Services;
 namespace CactBridge.Services;
 
 /// <summary>
-/// Text-to-speech service with hybrid engine support:
-///
-/// **Windows** — uses <c>System.Speech</c> (Windows SAPI) by default.
-/// No downloads needed; volume syncs to the game's Voice channel.
-///
-/// **Linux / Steam Deck** — falls back to eSpeak NG as an external process.
-/// The eSpeak NG binary must be available on the system or bundled.
+/// Text-to-speech service. Uses <c>System.Speech</c> (Windows SAPI) on
+/// Windows, with the game's Voice channel volume applied automatically.
+/// On Linux / Steam Deck it falls back to eSpeak NG as an external process.
 ///
 /// Speech requests are fire-and-forget so they never block the game thread.
 /// </summary>
@@ -70,30 +66,9 @@ public sealed class TtsService : IDisposable
 
         if (useEspeak)
         {
-            // ------------------------------------------------------------------
-            // TODO: eSpeak NG on Linux / Steam Deck
-            //
-            // Steps to finish implementation:
-            //
-            // 1. Find the espeak-ng binary:
-            //    - Check config.EspeakNgPath (user-specified path)
-            //    - Check common Linux paths: /usr/bin/espeak-ng, /usr/local/bin/espeak-ng
-            //    - Check plugin directory for a bundled binary
-            //    - Check $APPDATA/CactBridge/espeak-ng/ for cached download
-            //
-            // 2. If not found, download it:
-            //    - Use the old DownloadAndExtractAsync logic from git history
-            //    - On Linux, download the Linux build (e.g. espeak-ng-data + binary)
-            //    - Extract and cache in %APPDATA%/CactBridge/espeak-ng/
-            //
-            // 3. Set IsReady = true and ActiveEngine = "eSpeak NG"
-            //
-            // 4. Volume: Use a manual slider (config.TtsVolume) since IGameConfig
-            //    may not work reliably outside of Windows SAPI. The game's
-            //    Voice volume can still be read as a suggestion.
-            // ------------------------------------------------------------------
-
-            log.Warning("[CactBridge] TTS: eSpeak NG engine selected but not yet implemented — speech disabled");
+            // TODO: eSpeak NG on Linux / Steam Deck. The binary lookup and
+            // download logic used to live here (see git history).
+            log.Warning("[CactBridge] TTS: eSpeak NG engine selected but not yet implemented; speech disabled");
             Status = "eSpeak NG (TODO)";
             StatusChanged?.Invoke(Status);
         }
@@ -220,25 +195,8 @@ public sealed class TtsService : IDisposable
         }
         else if (espeakNgPath != null)
         {
-            // ------------------------------------------------------------------
-            // TODO: eSpeak NG speak path
-            //
-            // var psi = new ProcessStartInfo
-            // {
-            //     FileName = espeakNgPath,
-            //     Arguments = $"\"{text}\"",
-            //     UseShellExecute = false,
-            //     CreateNoWindow = true,
-            //     RedirectStandardOutput = true,
-            //     RedirectStandardError = true,
-            // };
-            // using var process = Process.Start(psi);
-            // ... handle timeout, errors, etc.
-            //
-            // For volume: read gameConfig.TryGet(SystemConfigOption.SoundVoice, out uint vol)
-            // and pass --amplitude={vol} to espeak-ng, or clamp 0-100.
-            // On Linux where IGameConfig may not work, use a manual slider.
-            // ------------------------------------------------------------------
+            // TODO: eSpeak NG speak path. Spawn the binary with an amplitude
+            // matching the Voice channel volume.
             _ = Task.Run(() => SpeakEspeakNg(text), cts.Token);
         }
     }
@@ -275,22 +233,10 @@ public sealed class TtsService : IDisposable
     // eSpeak NG fallback (stub)
     // -----------------------------------------------------------------------
 
-    /// <summary>
-    /// Speaks text via the eSpeak NG external process.
-    ///
-    /// TODO: Implement fully. This method is called on a background thread.
-    ///
-    /// Required:
-    ///   1. Resolve <see cref="espeakNgPath"/> in the constructor
-    ///      (search common paths, config.EspeakNgPath, bundled binary).
-    ///   2. Add voice selection (e.g. --voice=en-us or config option).
-    ///   3. Add volume support via --amplitude or config.TtsVolume.
-    ///   4. Handle process timeout and errors.
-    ///   5. Rate-limit / queue to avoid overlapping speech.
-    /// </summary>
+    /// <summary>Speaks text via the eSpeak NG external process (background thread).</summary>
     private void SpeakEspeakNg(string text)
     {
-        // Stub — logs the attempt instead of speaking
+        // TODO: not implemented yet, just log the attempt.
         log.Verbose($"[CactBridge] TTS: eSpeak NG would speak: \"{text}\"");
     }
 

@@ -527,14 +527,6 @@ public sealed class WebSocketService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Processes an <c>onBroadcastMessage</c> event.
-    ///
-    /// Cactbot's raidboss overlay broadcasts processed trigger alerts here with
-    /// the payload shape: <c>{ type: "alarm"|"alert"|"info", text: "…", duration?: number }</c>
-    ///
-    /// This is the primary data source for on-screen alerts.
-    /// </summary>
     // -----------------------------------------------------------------------
     // ACT LogLine parsing
     // -----------------------------------------------------------------------
@@ -595,6 +587,14 @@ public sealed class WebSocketService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Processes an <c>onBroadcastMessage</c> event.
+    ///
+    /// Cactbot's raidboss overlay broadcasts processed trigger alerts here with
+    /// the payload shape: <c>{ type: "alarm"|"alert"|"info", text: "…", duration?: number }</c>
+    ///
+    /// This is the primary data source for on-screen alerts.
+    /// </summary>
     private void HandleBroadcast(JsonElement root)
     {
         if (!root.TryGetProperty("msg", out var payload) || payload.ValueKind != JsonValueKind.Object)

@@ -15,11 +15,7 @@ public enum AlertType
     Alarm
 }
 
-/// <summary>
-/// A processed raidboss alert ready for display on screen.
-/// Instances are produced by <see cref="CactBridge.Services.WebSocketService"/>
-/// and consumed each frame by <see cref="CactBridge.Windows.OverlayWindow"/>.
-/// </summary>
+/// <summary>A single raidboss alert, ready for display.</summary>
 public class CactbotAlert
 {
     /// <summary>Human-readable text to display (e.g. "Stack!", "Spread").</summary>
@@ -34,16 +30,10 @@ public class CactbotAlert
     /// <summary>UTC timestamp at which this alert was received.</summary>
     public DateTime ReceivedAt { get; init; } = DateTime.UtcNow;
 
-    /// <summary>
-    /// When set, this alert is a live countdown. The overlay will display the
-    /// remaining seconds computed each frame instead of the static <see cref="Text"/>.
-    /// </summary>
+    /// <summary>When set, shows the remaining seconds instead of <see cref="Text"/>.</summary>
     public DateTime? CountdownEndTime { get; set; }
 
-    /// <summary>
-    /// When set, this alert is a live cast bar. The overlay appends the remaining
-    /// cast time each frame: "{Text} (X.Xs)". Expires when <see cref="IsExpired"/> is true.
-    /// </summary>
+    /// <summary>When set, appends the remaining cast time to <see cref="Text"/>.</summary>
     public DateTime? CastEndTime { get; set; }
 
     /// <summary>Seconds elapsed since this alert arrived.</summary>
@@ -52,10 +42,7 @@ public class CactbotAlert
     /// <summary>True when the alert has exceeded its display duration.</summary>
     public bool IsExpired => ElapsedSeconds >= Duration;
 
-    /// <summary>
-    /// 0–1 alpha multiplier for a smooth one-second fade-out.
-    /// Returns 1 while the alert still has more than one second remaining.
-    /// </summary>
+    /// <summary>Alpha multiplier (0-1) for a one-second fade-out before expiry.</summary>
     public float FadeAlpha
     {
         get
@@ -71,25 +58,19 @@ public class CactbotAlert
 // Timeline model
 // ---------------------------------------------------------------------------
 
-/// <summary>
-/// A single entry in the encounter timeline, representing an upcoming
-/// boss ability with its time remaining.
-/// </summary>
+/// <summary>An upcoming boss ability in the encounter timeline.</summary>
 public class TimelineEntry
 {
     /// <summary>Name of the ability / mechanic.</summary>
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>Initial time in seconds until this ability fires (at the moment it was received).</summary>
+    /// <summary>Seconds until this ability fires, as received.</summary>
     public double InitialTimeRemaining { get; set; }
 
     /// <summary>Absolute UTC time when this entry was received.</summary>
     public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>
-    /// Dynamically calculated time remaining in seconds until this ability fires.
-    /// Counts down in real-time from <see cref="InitialTimeRemaining"/>.
-    /// </summary>
+    /// <summary>Seconds until this ability fires, counting down from <see cref="InitialTimeRemaining"/>.</summary>
     public double TimeRemaining
     {
         get
@@ -110,9 +91,7 @@ public class TimelineEntry
 // Combat data / Damage meter models
 // ---------------------------------------------------------------------------
 
-/// <summary>
-/// Encounter-level metadata from the <c>CombatData</c> event.
-/// </summary>
+/// <summary>Encounter metadata from the <c>CombatData</c> event.</summary>
 public class EncounterInfo
 {
     /// <summary>Fight name / encounter title.</summary>
@@ -159,11 +138,7 @@ public class EncounterInfo
             : $"{Damage:F0}";
 }
 
-/// <summary>
-/// A single combatant (party member) in the current encounter.
-/// OverlayPlugin sends these with uppercase field names and uses "ENCDPS"
-/// for damage per second rather than "DPS".
-/// </summary>
+/// <summary>A single combatant in the current encounter (OverlayPlugin sends uppercase field names, "ENCDPS" for DPS).</summary>
 public class CombatantInfo
 {
     private double _dps;
@@ -184,10 +159,7 @@ public class CombatantInfo
     [JsonPropertyName("DamagePercent")]
     public double DamagePercent { get; set; }
 
-    /// <summary>
-    /// Personal DPS. OverlayPlugin sends this as "ENCDPS".
-    /// The backing field is shared with <see cref="ENCDPS"/> so both names work.
-    /// </summary>
+    /// <summary>Personal DPS (shares its backing field with <see cref="ENCDPS"/>).</summary>
     [JsonPropertyName("DPS")]
     public double DPS
     {
@@ -243,74 +215,6 @@ public class CombatantInfo
 // ---------------------------------------------------------------------------
 // OverlayPlugin WebSocket wire types
 // ---------------------------------------------------------------------------
-
-/// <summary>
-/// Top-level shape of every message received from the OverlayPlugin WebSocket.
-/// Only the fields we actually use are deserialised - unknown fields are ignored.
-/// </summary>
-internal class OverlayPluginMessage
-{
-    /// <summary>Event type string, e.g. "onBroadcastMessage", "ChangeZone".</summary>
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-
-    /// <summary>Source overlay name, present on broadcast messages.</summary>
-    [JsonPropertyName("source")]
-    public string? Source { get; set; }
-
-    /// <summary>
-    /// Payload for <c>onBroadcastMessage</c> events sent by the cactbot
-    /// raidboss overlay. Contains the processed alert data.
-    /// </summary>
-    [JsonPropertyName("msg")]
-    public BroadcastPayload? Msg { get; set; }
-
-    // ChangeZone fields
-    [JsonPropertyName("zoneID")]
-    public int? ZoneId { get; set; }
-
-    [JsonPropertyName("zoneName")]
-    public string? ZoneName { get; set; }
-}
-
-/// <summary>
-/// The inner payload of an <c>onBroadcastMessage</c> event.
-/// Cactbot's raidboss overlay sends this when a trigger fires.
-/// Shape: <c>{ type: "alarm"|"alert"|"info", text: "…", duration?: number }</c>
-/// </summary>
-internal class BroadcastPayload
-{
-    /// <summary>Alert severity: "alarm", "alert", or "info".</summary>
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-
-    /// <summary>The text to display on screen.</summary>
-    [JsonPropertyName("text")]
-    public string? Text { get; set; }
-
-    /// <summary>Optional display duration in seconds.</summary>
-    [JsonPropertyName("duration")]
-    public float? Duration { get; set; }
-}
-
-/// <summary>
-/// Payload shape for timeline entries broadcast by the Cactbot raidboss overlay.
-/// Format: <c>{ type: "timeline", text: "Ability Name", time: 123.4, duration?: n }</c>
-/// </summary>
-internal class TimelinePayload
-{
-    [JsonPropertyName("type")]
-    public string? Type { get; set; }
-
-    [JsonPropertyName("text")]
-    public string? Text { get; set; }
-
-    [JsonPropertyName("time")]
-    public double? Time { get; set; }
-
-    [JsonPropertyName("duration")]
-    public float? Duration { get; set; }
-}
 
 /// <summary>
 /// Subscription request sent to OverlayPlugin immediately after connecting.
